@@ -8,7 +8,7 @@
 .pioenvs
 .piolibdeps
 .vscode
-.env
+*.env
 
 esp01-update.sh
 platformio_override.ini
