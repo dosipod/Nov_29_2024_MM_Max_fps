@@ -143,7 +143,7 @@ static bool udpSyncConnected = false;         // UDP connection status -> true i
 #define NUM_GEQ_CHANNELS 16                                           // number of frequency channels. Don't change !!
 
 // audioreactive variables
-#ifdef ARDUINO_ARCH_ESP32
+//#ifdef ARDUINO_ARCH_ESP32
 static float    micDataReal = 0.0f;             // MicIn data with full 24bit resolution - lowest 8bit after decimal point
 static float    multAgc = 1.0f;                 // sample * multAgc = sampleAgc. Our AGC multiplier
 static float    sampleAvg = 0.0f;               // Smoothed Average sample - sampleAvg < 1 means "quiet" (simple noise gate)
@@ -154,7 +154,7 @@ static uint8_t  soundAgc = 1;                   // Automagic gain control: 0 - n
 static uint8_t  soundAgc = 0;                   // Automagic gain control: 0 - none, 1 - normal, 2 - vivid, 3 - lazy (config value)
 #endif
 
-#endif
+//#endif
 static float    volumeSmth = 0.0f;              // either sampleAvg or sampleAgc depending on soundAgc; smoothed sample
 static float FFT_MajorPeak = 1.0f;              // FFT: strongest (peak) frequency
 static float FFT_Magnitude = 0.0f;              // FFT: volume (magnitude) of peak frequency
@@ -222,7 +222,7 @@ static uint8_t FFTScalingMode = 3;            // 0 none; 1 optimized logarithmic
   static uint8_t pinkIndex = SR_FREQ_PROF;    // 0: default; 1: line-in; 2: IMNP441
 #endif
 
-
+#endif
 // 
 // AGC presets
 //  Note: in C++, "const" implies "static" - no need to explicitly declare everything as "static const"
@@ -246,6 +246,7 @@ const float agcSampleSmooth[AGC_NUM_PRESETS]  = {  1/12.f,   1/6.f,  1/16.f}; //
 #endif
 // AGC presets end
 
+#ifdef ARDUINO_ARCH_ESP32
 static AudioSource *audioSource = nullptr;
 static uint8_t useInputFilter = 0;                        // enables low-cut filtering. Applies before FFT.
 
@@ -1180,23 +1181,24 @@ class AudioReactive : public Usermod {
 
 #ifdef ARDUINO_ARCH_ESP32
     // used for AGC
-    int      last_soundAgc = -1;   // used to detect AGC mode change (for resetting AGC internal error buffers)
     double   control_integrated = 0.0;   // persistent across calls to agcAvg(); "integrator control" = accumulated error
 
+#endif
+    // used for AGC
+    int      last_soundAgc = -1;   // used to detect AGC mode change (for resetting AGC internal error buffers)
+
     // variables used by getSample() and agcAvg()
-    double   sampleMax = 0.0;     // Max sample over a few seconds. Needed for AGC controller.
-    double   micLev = 0.0;        // Used to convert returned value to have '0' as minimum. A leveller
     float    expAdjF = 0.0f;      // Used for exponential filter.
+    double   micLev = 0.0;        // Used to convert returned value to have '0' as minimum. A leveller
+    double   sampleMax = 0.0;     // Max sample over a few seconds. Needed for AGC controller.
     float    sampleReal = 0.0f;	  // "sampleRaw" as float, to provide bits that are lost otherwise (before amplification by sampleGain or inputLevel). Needed for AGC.
     int16_t  sampleRaw = 0;       // Current sample. Must only be updated ONCE!!! (amplified mic value by sampleGain and inputLevel)
     int16_t  rawSampleAgc = 0;    // not smoothed AGC sample
-#endif
-
     // variables used in effects
     int16_t  volumeRaw = 0;       // either sampleRaw or rawSampleAgc depending on soundAgc
     float my_magnitude =0.0f;     // FFT_Magnitude, scaled by multAgc
     float soundPressure = 0;      // Sound Pressure estimation, based on microphone raw readings. 0 ->5db, 255 ->105db
-
+ 
     // used to feed "Info" Page
     unsigned long last_UDPTime = 0;    // time of last valid UDP sound sync datapacket
     int receivedFormat = 0;            // last received UDP sound sync format - 0=none, 1=v1 (0.13.x), 2=v2 (0.14.x)
@@ -1299,7 +1301,155 @@ class AudioReactive : public Usermod {
     #endif // FFT_SAMPLING_LOG
     } // logAudio()
 
-#ifdef ARDUINO_ARCH_ESP32
+#ifndef ARDUINO_ARCH_ESP32
+// fallback on good old days for 8266
+
+    /*
+    * A "PI controller" multiplier to automatically adjust sound sensitivity.
+    * 
+    * A few tricks are implemented so that sampleAgc does't only utilize 0% and 100%:
+    * 0. don't amplify anything below squelch (but keep previous gain)
+    * 1. gain input = maximum signal observed in the last 5-10 seconds
+    * 2. we use two setpoints, one at ~60%, and one at ~80% of the maximum signal
+    * 3. the amplification depends on signal level:
+    *    a) normal zone - very slow adjustment
+    *    b) emergency zone (<10% or >90%) - very fast adjustment
+    */
+    void agcAvg(unsigned long the_time)
+    {
+      multAgc = (sampleAvg < 1) ? targetAgc : targetAgc / sampleAvg; // Make the multiplier so that sampleAvg * multiplier = setpoint
+      int tmpAgc = sampleRaw * multAgc;
+      if (tmpAgc > 255)
+        tmpAgc = 0;
+      sampleAgc = tmpAgc; // ONLY update sampleAgc ONCE because it's used elsewhere asynchronously!!!!
+      last_soundAgc = soundAgc;
+    } // agcAvg()
+
+    // post-processing and filtering of MIC sample (micDataReal) from FFTcode()
+int micIn;                                      // Current sample starts with negative values and large values, which is why it's 16 bit signed
+
+float weighting = 0.2;                          // Exponential filter weighting. Will be adjustable in a future release.
+#ifndef SR_SQUELCH
+  uint8_t soundSquelch = 10;                  // squelch value for volume reactive routines (config value)
+#else
+  uint8_t soundSquelch = SR_SQUELCH;          // squelch value for volume reactive routines (config value)
+#endif
+#ifndef SR_GAIN
+  uint8_t sampleGain = 60;                    // sample gain (config value)
+#else
+  uint8_t sampleGain = SR_GAIN;               // sample gain (config value)
+#endif
+    void getSample()
+    {
+        float sampleAdj;                                            // Gain adjusted sample value
+        float tmpSample;                                            // An interim sample variable used for calculations.
+        const float weighting = 0.18f;                              // Exponential filter weighting. Will be adjustable in a future release.
+        const float weighting2 = 0.073f;                            // Exponential filter weighting, for rising signal (a bit more robust against spikes)
+        const int AGC_preset = (soundAgc > 0) ? (soundAgc - 1) : 0; // make sure the _compiler_ knows this value will not change while we are inside the function
+        static bool isFrozen = false;
+        static bool haveSilence = true;
+        static unsigned long lastSoundTime = 0; // for delaying un-freeze
+        static unsigned long startuptime = 0;   // "fast freeze" mode: do not interfere during first 12 seconds (filter startup time)
+        static long peakTime;
+
+        micIn = analogRead(MIC_PIN); // Poor man's analog read
+        //////
+        DEBUGSR_PRINT("micIn:\tmicIn>>2:\tmic_In_abs:\tsample:\tsampleAdj:\tsampleAvg:\n");
+        DEBUGSR_PRINT(micIn);
+        //////
+        DEBUGSR_PRINT("\t\t");
+        DEBUGSR_PRINT(micIn);
+        micLev = ((micLev * 31) + micIn) / 32; // Smooth it out over the last 32 samples for automatic centering
+        micIn -= micLev;                       // Let's center it to 0 now
+        micIn = abs(micIn);                    // And get the absolute value of each sample
+        micDataReal = micLev;
+                                               //////
+        DEBUGSR_PRINT("\t\t");
+        DEBUGSR_PRINT(micIn);
+
+        // Using an exponential filter to smooth out the signal. We'll add controls for this in a future release.
+        expAdjF = (weighting * micIn + (1.0 - weighting) * expAdjF);
+        expAdjF = (expAdjF <= soundSquelch) ? 0 : expAdjF;
+
+        tmpSample = (int)expAdjF;
+
+        //////
+        DEBUGSR_PRINT("\t\t");
+        DEBUGSR_PRINT(sampleRaw);
+
+        sampleAdj = tmpSample * sampleGain / 40 + tmpSample / 16; // Adjust the gain.
+        sampleAdj = min(sampleAdj, 255);
+        sampleRaw = sampleAdj; // ONLY update sample ONCE!!!!
+        sampleReal = tmpSample;
+
+        sampleAvg = ((sampleAvg * 15) + sampleRaw) / 16; // Smooth it out over the last 16 samples.
+                                                      //////
+
+        DEBUGSR_PRINT("\t");
+        DEBUGSR_PRINT(sampleRaw);
+        DEBUGSR_PRINT("\t\t");
+        DEBUGSR_PRINT(sampleAvg);
+        DEBUGSR_PRINT("\n\n");
+
+        if (millis() - timeOfPeak > MIN_SHOW_DELAY)
+        { // Auto-reset of samplePeak after a complete frame has passed.
+          samplePeak = 0;
+          udpSamplePeak = 0;
+        }
+
+        // Poor man's beat detection by seeing if sample > Average + some value.
+        if ((sampleRaw > (sampleAvg + maxVol)) && ((millis() - peakTime) > 100))
+        {
+          // Then we got a peak, else we don't. Display routines need to reset the samplepeak value in case they miss the trigger.
+          samplePeak = 1;
+          timeOfPeak = millis();
+          peakTime = millis();
+        }
+
+        if (startuptime == 0)
+          startuptime = millis(); // fast freeze mode - remember filter startup time
+
+        if (expAdjF <= 0.5f)
+          haveSilence = true;
+        else
+        {
+          lastSoundTime = millis();
+          haveSilence = false;
+        }
+
+        // un-freeze micLev
+        if (micLevelMethod == 0)
+          isFrozen = false;
+        if ((micLevelMethod == 1) && isFrozen && haveSilence && ((millis() - lastSoundTime) > 4000))
+          isFrozen = false; // normal freeze: 4 seconds silence needed
+        if ((micLevelMethod == 2) && isFrozen && haveSilence && ((millis() - lastSoundTime) > 6000))
+          isFrozen = false; // fast freeze: 6 seconds silence needed
+        if ((micLevelMethod == 2) && (millis() - startuptime < 12000))
+          isFrozen = false; // fast freeze: no freeze in first 12 seconds (filter startup phase)
+
+      // keep "peak" sample, but decay value if current sample is below peak
+      if ((sampleMax < sampleReal) && (sampleReal > 0.5f)) {
+        sampleMax = sampleMax + 0.5f * (sampleReal - sampleMax);  // new peak - with some filtering
+#if 1
+        // another simple way to detect samplePeak - cannot detect beats, but reacts on peak volume
+        if (((binNum < 12) || ((maxVol < 1))) && (millis() - timeOfPeak > 80) && (sampleAvg > 1)) {
+          samplePeak    = true;
+          timeOfPeak    = millis();
+          udpSamplePeak = true;
+        }
+#endif
+      } else {
+        if ((multAgc*sampleMax > agcZoneStop[AGC_preset]) && (soundAgc > 0))
+          sampleMax += 0.5f * (sampleReal - sampleMax);        // over AGC Zone - get back quickly
+        else
+          sampleMax *= agcSampleDecay[AGC_preset];             // signal to zero --> 5-8sec
+      }
+      if (sampleMax < 0.5f) sampleMax = 0.0f;
+    } // getSample()
+
+
+
+#else
 
     //////////////////////
     // Audio Processing //
@@ -2218,7 +2368,7 @@ class AudioReactive : public Usermod {
         DEBUGSR_PRINTF("|| %-9s min free stack %d\n", pcTaskGetTaskName(NULL), minLoopStackFree); //WLEDMM
       }
       #endif
-
+#endif
       // Only run the sampling code IF we're not in Receive mode or realtime mode
       if ((audioSyncEnabled != AUDIOSYNC_REC) && !disableSoundProcessing && !useNetworkAudio) {
         if (soundAgc > AGC_NUM_PRESETS) soundAgc = 0; // make sure that AGC preset is valid (to avoid array bounds violation)
@@ -2269,7 +2419,6 @@ class AudioReactive : public Usermod {
         }
         limitSampleDynamics();
       }  // if (!disableSoundProcessing)
-#endif
 
       autoResetPeak();          // auto-reset sample peak after strip minShowDelay
       if (!udpSyncConnected) udpSamplePeak = false;  // reset UDP samplePeak while UDP is unconnected
@@ -2772,10 +2921,13 @@ class AudioReactive : public Usermod {
       pinArray.add(sdaPin);
       pinArray.add(sclPin);
 
+#endif
       JsonObject cfg = top.createNestedObject("config");
       cfg[F("squelch")] = soundSquelch;
       cfg[F("gain")] = sampleGain;
       cfg[F("AGC")] = soundAgc;
+      
+#ifdef ARDUINO_ARCH_ESP32
 
       //WLEDMM: experimental settings
       JsonObject poweruser = top.createNestedObject("experiments");
@@ -2850,9 +3002,14 @@ class AudioReactive : public Usermod {
       configComplete &= getJsonValue(top[FPSTR(_digitalmic)]["pin"][4], sdaPin);
       configComplete &= getJsonValue(top[FPSTR(_digitalmic)]["pin"][5], sclPin);
 
+#endif
+
       configComplete &= getJsonValue(top["config"][F("squelch")], soundSquelch);
       configComplete &= getJsonValue(top["config"][F("gain")],    sampleGain);
       configComplete &= getJsonValue(top["config"][F("AGC")],     soundAgc);
+
+      
+#ifdef ARDUINO_ARCH_ESP32
 
       //WLEDMM: experimental settings
       configComplete &= getJsonValue(top["experiments"][F("micLev")], micLevelMethod);
