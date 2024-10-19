@@ -100,8 +100,11 @@ bool strip_uses_global_leds(void) __attribute__((pure));  // WLEDMM implemented 
   assuming each segment uses the same amount of data. 256 for ESP8266, 640 for ESP32. */
 #define FAIR_DATA_PER_SEG (MAX_SEGMENT_DATA / strip.getMaxSegments())
 
+#ifdef _frametime
 #define MIN_SHOW_DELAY   (_frametime < 16 ? (_frametime <8? (_frametime <7? (_frametime <6 ? 2 :3) :4) : 8) : 15)    // WLEDMM support higher framerates (up to 250fps)
-
+#else
+#define MIN_SHOW_DELAY 15
+#endif
 #define NUM_COLORS       3 /* number of colors per segment */
 #define SEGMENT          strip._segments[strip.getCurrSegmentId()]
 #define SEGENV           strip._segments[strip.getCurrSegmentId()]
