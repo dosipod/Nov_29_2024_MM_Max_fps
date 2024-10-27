@@ -200,7 +200,7 @@ static uint8_t binNum = 8;           // Used to select the bin for FFT based bea
 // use audio source class (ESP32 specific)
 #include "audio_source.h"
 constexpr int BLOCK_SIZE = 128;                  // I2S buffer size (samples)
-
+#endif
 // globals
 static uint8_t inputLevel = 128;              // UI slider value
 #ifndef SR_SQUELCH
@@ -213,6 +213,7 @@ static uint8_t inputLevel = 128;              // UI slider value
 #else
   uint8_t sampleGain = SR_GAIN;               // sample gain (config value)
 #endif
+#ifdef ARDUINO_ARCH_ESP32
 
 // user settable options for FFTResult scaling
 static uint8_t FFTScalingMode = 3;            // 0 none; 1 optimized logarithmic; 2 optimized linear; 3 optimized square root
@@ -246,12 +247,12 @@ const float agcSampleSmooth[AGC_NUM_PRESETS]  = {  1/12.f,   1/6.f,  1/16.f}; //
 #endif
 // AGC presets end
 
-#ifdef ARDUINO_ARCH_ESP32
-static AudioSource *audioSource = nullptr;
 static uint8_t useInputFilter = 0;                        // enables low-cut filtering. Applies before FFT.
 
 //WLEDMM add experimental settings
 static uint8_t micLevelMethod = 0;                        // 0=old "floating" miclev, 1=new  "freeze" mode, 2=fast freeze mode (mode 2 may not work for you)
+#ifdef ARDUINO_ARCH_ESP32
+static AudioSource *audioSource = nullptr;
 #if defined(CONFIG_IDF_TARGET_ESP32S2) || defined(CONFIG_IDF_TARGET_ESP32C3)
 static constexpr uint8_t averageByRMS = false;                      // false: use mean value, true: use RMS (root mean squared). use simpler method on slower MCUs.
 #else
@@ -1081,8 +1082,11 @@ static void autoResetPeak(void) {
 class AudioReactive : public Usermod {
 
   private:
-#ifdef ARDUINO_ARCH_ESP32
+#ifndef ARDUINO_ARCH_ESP32
 
+#define SR_DMTYPE 0 //  0=none/disabled/analog;
+uint8_t dmType = 0;
+#else
 // HUB75 workaround - audio receive only
 #ifdef WLED_ENABLE_HUB75MATRIX
 #undef SR_DMTYPE
@@ -1315,6 +1319,8 @@ class AudioReactive : public Usermod {
     *    a) normal zone - very slow adjustment
     *    b) emergency zone (<10% or >90%) - very fast adjustment
     */
+   uint8_t targetAgc = 60;                         // This is our setPoint at 20% of max for the adjusted output
+
     void agcAvg(unsigned long the_time)
     {
       multAgc = (sampleAvg < 1) ? targetAgc : targetAgc / sampleAvg; // Make the multiplier so that sampleAvg * multiplier = setpoint
@@ -1338,6 +1344,9 @@ float weighting = 0.2;                          // Exponential filter weighting.
   uint8_t sampleGain = 60;                    // sample gain (config value)
 #else
   uint8_t sampleGain = SR_GAIN;               // sample gain (config value)
+#endif
+#ifndef MIC_PIN
+  #define MIC_PIN   A0
 #endif
     void getSample()
     {
@@ -1378,7 +1387,7 @@ float weighting = 0.2;                          // Exponential filter weighting.
         DEBUGSR_PRINT(sampleRaw);
 
         sampleAdj = tmpSample * sampleGain / 40 + tmpSample / 16; // Adjust the gain.
-        sampleAdj = min(sampleAdj, 255);
+        sampleAdj = min(sampleAdj, 255.f);
         sampleRaw = sampleAdj; // ONLY update sample ONCE!!!!
         sampleReal = tmpSample;
 
@@ -1663,7 +1672,7 @@ float weighting = 0.2;                          // Exponential filter weighting.
       }
       sampleAvg = fabsf(sampleAvg);                            // make sure we have a positive value
     } // getSample()
-
+#endif
 
     // current sensitivity, based on AGC gain (multAgc)
     float getSensitivity()
@@ -1685,7 +1694,6 @@ float weighting = 0.2;                          // Exponential filter weighting.
       // we have a value now that should be between 0 and 4 (representing gain 1/16 ... 16.0)
       return fminf(fmaxf(128.0*tmpSound -6.0f, 0), 255.0);        // return scaled non-inverted value // "-6" to ignore values below 1/24
     }
-
     // estimate sound pressure, based on some assumptions : 
     //   * sample max = 32676 -> Acoustic overload point  --> 105db ==> 255
     //   * sample < squelch   -> just above hearing level -->   5db ==> 0
@@ -1717,8 +1725,6 @@ float weighting = 0.2;                          // Exponential filter weighting.
       scaledvalue = (scaledvalue - logMinSample) / (logMaxSample - logMinSample); // 0...1
       return fminf(fmaxf(256.0*scaledvalue, 0), 255.0);        // scaled value
     }
-#endif
-
 
     /* Limits the dynamics of volumeSmth (= sampleAvg or sampleAgc). 
      * does not affect FFTResult[] or volumeRaw ( = sample or rawSampleAgc) 
@@ -2927,12 +2933,12 @@ float weighting = 0.2;                          // Exponential filter weighting.
       cfg[F("gain")] = sampleGain;
       cfg[F("AGC")] = soundAgc;
       
-#ifdef ARDUINO_ARCH_ESP32
 
       //WLEDMM: experimental settings
       JsonObject poweruser = top.createNestedObject("experiments");
       poweruser[F("micLev")] = micLevelMethod;
       poweruser[F("Mic_Quality")] = micQuality;
+#ifdef ARDUINO_ARCH_ESP32
       poweruser[F("freqDist")] = freqDist;
       //poweruser[F("freqRMS")] = averageByRMS;
       poweruser[F("FFT_Window")] = fftWindow;
