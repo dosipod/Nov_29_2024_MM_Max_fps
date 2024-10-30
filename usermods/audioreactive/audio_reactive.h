@@ -41,6 +41,13 @@
  * ....
  */
 
+#ifdef ARDUINO_ARCH_ESP32
+#define LOOP_THROTTLING 1
+#define RERUNS_DELAY_CAP 200
+#else
+#define LOOP_THROTTLING 10 // lower end esp cannot handle computing every loop
+#define RERUNS_DELAY_CAP 1
+#endif
 
 #if defined(WLEDMM_FASTPATH) && defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32)
 #define FFT_USE_SLIDING_WINDOW             // perform FFT with sliding window =  50% overlap
@@ -2298,7 +2305,7 @@ uint8_t dmType = 0;
       static unsigned long lastUMRun = millis();
       static unsigned long lastEntry = millis();
 
-      if (!enabled || millis()-lastEntry < 10) {
+      if (!enabled || millis()-lastEntry < LOOP_THROTTLING) {
         disableSoundProcessing = true;   // keep processing suspended (FFT task)
         lastUMRun = millis();            // update time keeping
         return;
@@ -2382,8 +2389,7 @@ uint8_t dmType = 0;
 
         // run filters, and repeat in case of loop delays (hick-up compensation)
         if (userloopDelay <2) userloopDelay = 0;      // minor glitch, no problem
-        if (userloopDelay >200) userloopDelay = 200;  // limit number of filter re-runs 
-        userloopDelay = 1; 
+        if (userloopDelay >RERUNS_DELAY_CAP) userloopDelay = RERUNS_DELAY_CAP;  // limit number of filter re-runs 
         do {
           getSample();                        // run microphone sampling filters
           agcAvg(t_now - userloopDelay);      // Calculated the PI adjusted value as sampleAvg
@@ -2984,7 +2990,6 @@ uint8_t dmType = 0;
       USER_PRINTF("\n readFromConfig\n");
       JsonObject top = root[FPSTR(_name)];
       bool configComplete = !top.isNull();
-      static int callcount=0;
       configComplete &= getJsonValue(top[FPSTR(_enabled)], enabled);
     #ifdef ARDUINO_ARCH_ESP32
     #if !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32S3)
