@@ -1332,19 +1332,7 @@ uint8_t dmType = 0;
     } // agcAvg()
 
     // post-processing and filtering of MIC sample (micDataReal) from FFTcode()
-int micIn;                                      // Current sample starts with negative values and large values, which is why it's 16 bit signed
 
-float weighting = 0.2;                          // Exponential filter weighting. Will be adjustable in a future release.
-#ifndef SR_SQUELCH
-  uint8_t soundSquelch = 10;                  // squelch value for volume reactive routines (config value)
-#else
-  uint8_t soundSquelch = SR_SQUELCH;          // squelch value for volume reactive routines (config value)
-#endif
-#ifndef SR_GAIN
-  uint8_t sampleGain = 60;                    // sample gain (config value)
-#else
-  uint8_t sampleGain = SR_GAIN;               // sample gain (config value)
-#endif
 #ifndef MIC_PIN
   #define MIC_PIN   A0
 #endif
@@ -1353,7 +1341,6 @@ float weighting = 0.2;                          // Exponential filter weighting.
         float sampleAdj;                                            // Gain adjusted sample value
         float tmpSample;                                            // An interim sample variable used for calculations.
         const float weighting = 0.18f;                              // Exponential filter weighting. Will be adjustable in a future release.
-        const float weighting2 = 0.073f;                            // Exponential filter weighting, for rising signal (a bit more robust against spikes)
         const int AGC_preset = (soundAgc > 0) ? (soundAgc - 1) : 0; // make sure the _compiler_ knows this value will not change while we are inside the function
         static bool isFrozen = false;
         static bool haveSilence = true;
@@ -1361,7 +1348,7 @@ float weighting = 0.2;                          // Exponential filter weighting.
         static unsigned long startuptime = 0;   // "fast freeze" mode: do not interfere during first 12 seconds (filter startup time)
         static long peakTime;
 
-        micIn = analogRead(MIC_PIN); // Poor man's analog read
+        int micIn = analogRead(MIC_PIN); // Poor man's analog read
         //////
         DEBUGSR_PRINT("micIn:\tmicIn>>2:\tmic_In_abs:\tsample:\tsampleAdj:\tsampleAvg:\n");
         DEBUGSR_PRINT(micIn);
@@ -2212,7 +2199,7 @@ float weighting = 0.2;                          // Exponential filter weighting.
 
       if (!audioSource && (dmType < 254)) enabled = false;      // audio failed to initialise
 #endif
-      if (enabled) onUpdateBegin(false);                        // create FFT task, and initialize network
+      //if (enabled) onUpdateBegin(false);                        // create FFT task, and initialize network
 
 #ifdef ARDUINO_ARCH_ESP32
       if (audioSource && FFT_Task == nullptr) enabled = false; // FFT task creation failed
@@ -2225,12 +2212,12 @@ float weighting = 0.2;                          // Exponential filter weighting.
         USER_PRINTLN(F("AR: sound input driver initialized successfully."));        
       }
 #endif
-      if (enabled) disableSoundProcessing = false;       // all good - enable audio processing
+//      if (enabled) disableSoundProcessing = false;       // all good - enable audio processing
       // try to start UDP
       last_UDPTime = 0;
       receivedFormat = 0;
       delay(100);
-      if (enabled) connectUDPSoundSync();
+      // if (enabled) connectUDPSoundSync();
       initDone = true;
       DEBUGSR_PRINT(F("AR: init done, enabled = "));
       DEBUGSR_PRINTLN(enabled ? F("true.") : F("false."));
@@ -2309,12 +2296,14 @@ float weighting = 0.2;                          // Exponential filter weighting.
     void loop()
     {
       static unsigned long lastUMRun = millis();
+      static unsigned long lastEntry = millis();
 
-      if (!enabled) {
+      if (!enabled || millis()-lastEntry < 10) {
         disableSoundProcessing = true;   // keep processing suspended (FFT task)
         lastUMRun = millis();            // update time keeping
         return;
       }
+      lastEntry = millis();
       // We cannot wait indefinitely before processing audio data
       if (strip.isServicing() && (millis() - lastUMRun < 2)) return;   // WLEDMM isServicing() is the critical part (be nice, but not too nice)
 
@@ -2528,7 +2517,7 @@ float weighting = 0.2;                          // Exponential filter weighting.
 
     bool getUMData(um_data_t **data)
     {
-      if (!data || !enabled) return false; // no pointer provided by caller or not enabled -> exit
+      if (!data || !enabled || !initDone) return false; // no pointer provided by caller or not enabled -> exit
       *data = um_data;
       return true;
     }
@@ -2625,7 +2614,8 @@ float weighting = 0.2;                          // Exponential filter weighting.
           receivedFormat = 0;
         }
       }
-      if (enabled) disableSoundProcessing = init; // init = true means that OTA is just starting --> don't process audio
+      micDataReal = 0.0f;                     // just to be sure
+      if (enabled) disableSoundProcessing = false;
       updateIsRunning = init;
     }
 #endif
@@ -2994,7 +2984,7 @@ float weighting = 0.2;                          // Exponential filter weighting.
       USER_PRINTF("\n readFromConfig\n");
       JsonObject top = root[FPSTR(_name)];
       bool configComplete = !top.isNull();
-
+      static int callcount=0;
       configComplete &= getJsonValue(top[FPSTR(_enabled)], enabled);
     #ifdef ARDUINO_ARCH_ESP32
     #if !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32S3)
