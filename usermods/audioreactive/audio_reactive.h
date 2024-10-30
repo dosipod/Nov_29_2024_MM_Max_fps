@@ -2393,7 +2393,8 @@ float weighting = 0.2;                          // Exponential filter weighting.
 
         // run filters, and repeat in case of loop delays (hick-up compensation)
         if (userloopDelay <2) userloopDelay = 0;      // minor glitch, no problem
-        if (userloopDelay >200) userloopDelay = 200;  // limit number of filter re-runs  
+        if (userloopDelay >200) userloopDelay = 200;  // limit number of filter re-runs 
+        userloopDelay = 1; 
         do {
           getSample();                        // run microphone sampling filters
           agcAvg(t_now - userloopDelay);      // Calculated the PI adjusted value as sampleAvg
@@ -2602,8 +2603,19 @@ float weighting = 0.2;                          // Exponential filter weighting.
       disableSoundProcessing = true;
       // reset sound data
       volumeRaw = 0; volumeSmth = 0;
+      // reset sound data
+      micDataReal = 0.0f;
+      sampleAgc = 0; sampleAvg = 0;
+      sampleRaw = 0; rawSampleAgc = 0;
+      my_magnitude = 0; FFT_Magnitude = 0; FFT_MajorPeak = 1;
+      multAgc = 1;
+      // reset FFT data
+      memset(fftCalc, 0, sizeof(fftCalc)); 
+      memset(fftAvg, 0, sizeof(fftAvg)); 
+      memset(fftResult, 0, sizeof(fftResult)); 
       for(int i=(init?0:1); i<NUM_GEQ_CHANNELS; i+=2) fftResult[i] = 16; // make a tiny pattern
       autoResetPeak();
+      USER_PRINTF("\n on update begin\n");
 
       if (init) {
         if (udpSyncConnected) {   // close UDP sync connection (if open)
@@ -2648,6 +2660,7 @@ float weighting = 0.2;                          // Exponential filter weighting.
      */
     void addToJsonInfo(JsonObject& root)
     {
+      USER_PRINTF("\n addToJsonInfo\n");
 #ifdef ARDUINO_ARCH_ESP32
       char myStringBuffer[16]; // buffer for snprintf() - not used yet on 8266
 #endif
@@ -2836,6 +2849,7 @@ float weighting = 0.2;                          // Exponential filter weighting.
     void addToJsonState(JsonObject& root)
     {
       if (!initDone) return;  // prevent crash on boot applyPreset()
+      USER_PRINTF("\n addToJsonState\n");
       JsonObject usermod = root[FPSTR(_name)];
       if (usermod.isNull()) {
         usermod = root.createNestedObject(FPSTR(_name));
@@ -2851,6 +2865,7 @@ float weighting = 0.2;                          // Exponential filter weighting.
     void readFromJsonState(JsonObject& root)
     {
       if (!initDone) return;  // prevent crash on boot applyPreset()
+      USER_PRINTF("\n readFromJsonState\n");
       bool prevEnabled = enabled;
       JsonObject usermod = root[FPSTR(_name)];
       if (!usermod.isNull()) {
@@ -2904,6 +2919,7 @@ float weighting = 0.2;                          // Exponential filter weighting.
      */
     void addToConfig(JsonObject& root)
     {
+      USER_PRINTF("\n addToConfig\n");
       JsonObject top = root.createNestedObject(FPSTR(_name));
       top[FPSTR(_enabled)] = enabled;
 #ifdef ARDUINO_ARCH_ESP32
@@ -2927,18 +2943,15 @@ float weighting = 0.2;                          // Exponential filter weighting.
       pinArray.add(sdaPin);
       pinArray.add(sclPin);
 
-#endif
       JsonObject cfg = top.createNestedObject("config");
       cfg[F("squelch")] = soundSquelch;
       cfg[F("gain")] = sampleGain;
       cfg[F("AGC")] = soundAgc;
-      
 
       //WLEDMM: experimental settings
       JsonObject poweruser = top.createNestedObject("experiments");
       poweruser[F("micLev")] = micLevelMethod;
       poweruser[F("Mic_Quality")] = micQuality;
-#ifdef ARDUINO_ARCH_ESP32
       poweruser[F("freqDist")] = freqDist;
       //poweruser[F("freqRMS")] = averageByRMS;
       poweruser[F("FFT_Window")] = fftWindow;
@@ -2978,11 +2991,12 @@ float weighting = 0.2;                          // Exponential filter weighting.
      */
     bool readFromConfig(JsonObject& root)
     {
+      USER_PRINTF("\n readFromConfig\n");
       JsonObject top = root[FPSTR(_name)];
       bool configComplete = !top.isNull();
 
       configComplete &= getJsonValue(top[FPSTR(_enabled)], enabled);
-#ifdef ARDUINO_ARCH_ESP32
+    #ifdef ARDUINO_ARCH_ESP32
     #if !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32S3)
       configComplete &= getJsonValue(top[FPSTR(_analogmic)]["pin"], audioPin);
     #else
@@ -3008,14 +3022,9 @@ float weighting = 0.2;                          // Exponential filter weighting.
       configComplete &= getJsonValue(top[FPSTR(_digitalmic)]["pin"][4], sdaPin);
       configComplete &= getJsonValue(top[FPSTR(_digitalmic)]["pin"][5], sclPin);
 
-#endif
-
       configComplete &= getJsonValue(top["config"][F("squelch")], soundSquelch);
       configComplete &= getJsonValue(top["config"][F("gain")],    sampleGain);
       configComplete &= getJsonValue(top["config"][F("AGC")],     soundAgc);
-
-      
-#ifdef ARDUINO_ARCH_ESP32
 
       //WLEDMM: experimental settings
       configComplete &= getJsonValue(top["experiments"][F("micLev")], micLevelMethod);
@@ -3044,6 +3053,7 @@ float weighting = 0.2;                          // Exponential filter weighting.
 
     void appendConfigData()
     {
+      USER_PRINTF("\n appendConfigData\n");
       oappend(SET_F("ux='AudioReactive';"));        // ux = shortcut for Audioreactive - fingers crossed that "ux" isn't already used as JS var, html post parameter or css style
       oappend(SET_F("uxp=ux+':digitalmic:pin[]';")); // uxp = shortcut for AudioReactive:digitalmic:pin[]
       oappend(SET_F("addInfo(ux+':help',0,'<button onclick=\"location.href=&quot;https://mm.kno.wled.ge/soundreactive/Sound-Settings&quot;\" type=\"button\">?</button>');"));
