@@ -13,6 +13,14 @@
 // WLEDMM  - you can check for this define in usermods, to only enabled WLEDMM specific code in the "right" fork. Its not defined in AC WLED.
 #define _MoonModules_WLED_
 
+// a few hacks
+#if !defined(ARDUINO_ARCH_ESP32)
+#undef ESP_IDF_VERSION
+#if !defined(ESP_IDF_VERSION_VAL)
+#define ESP_IDF_VERSION_VAL(a,b,c) 99999999 // dummy
+#endif
+#endif
+
 //WLEDMM + Moustachauve/Wled-Native 
 // You can define custom product info from build flags.
 // This is useful to allow API consumer to identify what type of WLED version
@@ -105,16 +113,26 @@
   #endif
 #else // ESP32
   #include <HardwareSerial.h>  // ensure we have the correct "Serial" on new MCUs (depends on ARDUINO_USB_MODE and ARDUINO_USB_CDC_ON_BOOT)
-  #include <WiFi.h>
-  #if defined (CONFIG_IDF_TARGET_ESP32S3) && defined (WLED_USE_ETHERNET)
-    #include <ETHClass2.h>
-  #else // ESP32
-    #include <ETH.h>
+  #if defined(ESP_IDF_VERSION) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    #ifdef WLED_USE_ETHERNET
+      #include <esp_eth.h>
+    #else
+      #ifdef CONFIG_IDF_TARGET_ESP32P4
+        #include <esp_hosted_api.h>
+      #endif
+      #include <esp_wifi.h>
+    #endif
+    #define I2S_SDPIN 11
+    #define I2S_WSPIN 10
+    #define I2S_CKPIN 12
+    #define MCLK_PIN  13
+    #define HW_PIN_SDA 7
+    #define HW_PIN_SCL 8
+  #else
+    #include "WiFi.h"
   #endif
-  #include "esp_wifi.h"
-  #ifndef WLED_DISABLE_MDNS 
-    #include <ESPmDNS.h>
-  #endif                     // WLEDMM end
+  #include <ETH.h>
+  #include <ESPmDNS.h>
   #include <AsyncTCP.h>
   #if LOROL_LITTLEFS
     #ifndef CONFIG_LITTLEFS_FOR_IDF_3_2
@@ -134,6 +152,9 @@
 #include <SPI.h>
 
 #include "src/dependencies/network/Network.h"
+#if defined(ESP_IDF_VERSION) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+#define Network WL_Network
+#endif
 
 #ifdef WLED_USE_MY_CONFIG
   #include "my_config.h"
@@ -333,7 +354,7 @@ WLED_GLOBAL int8_t irPin _INIT(-1);
 WLED_GLOBAL int8_t irPin _INIT(IRPIN);
 #endif
 
-#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32S2) || (defined(RX) && defined(TX))
+#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32C3) ||  defined(CONFIG_IDF_TARGET_ESP32C6) ||  defined(CONFIG_IDF_TARGET_ESP32P4) ||defined(CONFIG_IDF_TARGET_ESP32S2) || (defined(RX) && defined(TX))
   // use RX/TX as set by the framework - these boards do _not_ have RX=3 and TX=1
   constexpr uint8_t hardwareRX = RX;
   constexpr uint8_t hardwareTX = TX;
@@ -372,7 +393,6 @@ WLED_GLOBAL bool force802_3g _INIT(false);
     WLED_GLOBAL int ethernetType _INIT(WLED_ETH_NONE);             // use none for ethernet board type if default not defined
   #endif
 #endif
-
 // LED CONFIG
 WLED_GLOBAL bool turnOnAtBoot _INIT(true);                // turn on LEDs at power-up
 WLED_GLOBAL byte bootPreset   _INIT(0);                   // save preset to load after power-up
@@ -403,12 +423,6 @@ WLED_GLOBAL bool fadeTransition      _INIT(false);  // enable crossfading color 
 WLED_GLOBAL uint16_t transitionDelay _INIT(750);    // default crossfade duration in ms
 
 WLED_GLOBAL uint_fast16_t briMultiplier _INIT(100);          // % of brightness to set (to limit power, if you set it to 50 and set bri to 255, actual brightness will be 127)
-
-WLED_GLOBAL bool TROYHACKS_HPF   _INIT(true); // WLED-MM/TroyHacks: Turn HPF from ESP-DSP on/off
-WLED_GLOBAL bool TROYHACKS_LPF   _INIT(true); // WLED-MM/TroyHacks: Turn LPF from ESP-DSP on/off
-WLED_GLOBAL bool TROYHACKS_NOTCH _INIT(true); // WLED-MM/TroyHacks: Turn other filter from ESP-DSP on/off
-WLED_GLOBAL bool TROYHACKS_PINKY _INIT(false); // WLED-MM/TroyHacks: Internally calibrate audio against white noise
-WLED_GLOBAL float fftBinAverage[16] _INIT_N(({ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }));
 
 // User Interface CONFIG
 #ifndef SERVERNAME
@@ -731,6 +745,12 @@ WLED_GLOBAL unsigned long presetsModifiedTime _INIT(0L);
 WLED_GLOBAL JsonDocument* fileDoc;
 WLED_GLOBAL bool doCloseFile _INIT(false);
 
+#ifdef ARTNET_SKIP_FRAME
+WLED_GLOBAL bool ArtNetSkipFrame _INIT(true);
+#else 
+WLED_GLOBAL bool ArtNetSkipFrame _INIT(false);
+#endif
+
 // presets
 WLED_GLOBAL byte currentPreset _INIT(0);
 
@@ -900,12 +920,15 @@ WLED_GLOBAL volatile uint8_t jsonBufferLock _INIT(0);
   WLED_GLOBAL unsigned long loops _INIT(0);
 #endif
 
-#if defined ARDUINO_ARCH_ESP32 || defined ARDUINO_ARCH_ESP32S3
-  #define WLED_CONNECTED (WiFi.status() == WL_CONNECTED || ETH.localIP()[0] != 0)
-#else
-  #define WLED_CONNECTED (WiFi.status() == WL_CONNECTED)
+// #ifdef ARDUINO_ARCH_ESP32
+//   #define WLED_CONNECTED (WiFi.status() == WL_CONNECTED || ETH.localIP()[0] != 0)
+// #else
+//   #define WLED_CONNECTED (WiFi.status() == WL_CONNECTED)
+// #endif
+// #define WLED_WIFI_CONFIGURED (strlen(clientSSID) >= 1 && strcmp(clientSSID, DEFAULT_CLIENT_SSID) != 0)
+#ifdef ARDUINO_ARCH_ESP32P4
+  #define WLED_CONNECTED (ETH.localIP()[0] != 0)
 #endif
-#define WLED_WIFI_CONFIGURED (strlen(clientSSID) >= 1 && strcmp(clientSSID, DEFAULT_CLIENT_SSID) != 0)
 
 #ifndef WLED_AP_SSID_UNIQUE
   #define WLED_SET_AP_SSID() do { \
