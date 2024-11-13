@@ -789,9 +789,9 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   pinManager.allocateMultiplePins(pins, PIN_COUNT, PinOwner::HUB75, true);
 
   if(bc.colorOrder == COL_ORDER_RGB) {
-    DEBUG_PRINTLN("MatrixPanel_I2S_DMA = Default color order (RGB)");
+    USER_PRINTLN("MatrixPanel_I2S_DMA = Default color order (RGB)");
   } else if(bc.colorOrder == COL_ORDER_BGR) {
-    DEBUG_PRINTLN("MatrixPanel_I2S_DMA = color order BGR");
+    USER_PRINTLN("MatrixPanel_I2S_DMA = color order BGR");
     uint8_t tmpPin;
     tmpPin = mxconfig.gpio.r1;
     mxconfig.gpio.r1 = mxconfig.gpio.b1;
@@ -801,15 +801,14 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
     mxconfig.gpio.b2 = tmpPin;
   }
   else {
-    DEBUG_PRINTF("MatrixPanel_I2S_DMA = unsupported color order %u\n", bc.colorOrder);
+    USER_PRINTF("MatrixPanel_I2S_DMA = unsupported color order %u\n", bc.colorOrder);
   }
 
-  DEBUG_PRINTF("MatrixPanel_I2S_DMA config - %ux%u length: %u\n", mxconfig.mx_width, mxconfig.mx_height, mxconfig.chain_length);
-  DEBUG_PRINTF("R1_PIN=%u, G1_PIN=%u, B1_PIN=%u, R2_PIN=%u, G2_PIN=%u, B2_PIN=%u, A_PIN=%u, B_PIN=%u, C_PIN=%u, D_PIN=%u, E_PIN=%u, LAT_PIN=%u, OE_PIN=%u, CLK_PIN=%u\n",
+  USER_PRINTF("R1_PIN=%u, G1_PIN=%u, B1_PIN=%u, R2_PIN=%u, G2_PIN=%u, B2_PIN=%u, A_PIN=%u, B_PIN=%u, C_PIN=%u, D_PIN=%u, E_PIN=%u, LAT_PIN=%u, OE_PIN=%u, CLK_PIN=%u\n",
                 mxconfig.gpio.r1, mxconfig.gpio.g1, mxconfig.gpio.b1, mxconfig.gpio.r2, mxconfig.gpio.g2, mxconfig.gpio.b2,
                 mxconfig.gpio.a, mxconfig.gpio.b, mxconfig.gpio.c, mxconfig.gpio.d, mxconfig.gpio.e, mxconfig.gpio.lat, mxconfig.gpio.oe, mxconfig.gpio.clk);
   USER_PRINTF("MatrixPanel_I2S_DMA config - %ux%u (type %u) length: %u, %u bits/pixel.\n", mxconfig.mx_width, mxconfig.mx_height, bc.type, mxconfig.chain_length, mxconfig.getPixelColorDepthBits() * 3);
-  DEBUG_PRINT(F("Free heap: ")); DEBUG_PRINTLN(ESP.getFreeHeap()); lastHeap = ESP.getFreeHeap();
+  USER_PRINT(F("Free heap: ")); USER_PRINTLN(ESP.getFreeHeap()); lastHeap = ESP.getFreeHeap();
 
   // check if we can re-use the existing display driver
   if (activeDisplay) {
@@ -825,7 +824,7 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
         || (activeMXconfig.getPixelColorDepthBits() != mxconfig.getPixelColorDepthBits())  )
     {
       // not the same as before - delete old driver
-      DEBUG_PRINTLN("MatrixPanel_I2S_DMA deleting old driver!");
+      USER_PRINTLN("MatrixPanel_I2S_DMA deleting old driver!");
       activeDisplay->stopDMAoutput();
       delay(28);
       //#if !defined(CONFIG_IDF_TARGET_ESP32S3)  // prevent crash
@@ -866,7 +865,7 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   _bri = 25;
 
   delay(24); // experimental
-  DEBUG_PRINT(F("heap usage: ")); DEBUG_PRINTLN(int(lastHeap - ESP.getFreeHeap()));
+  USER_PRINT(F("heap usage: ")); USER_PRINTLN(int(lastHeap - ESP.getFreeHeap()));
   // Allocate memory and start DMA display
   if (newDisplay && (display->begin() == false)) {
       USER_PRINTLN("****** MatrixPanel_I2S_DMA !KABOOM! I2S memory allocation failed ***********");
@@ -886,7 +885,7 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
 
     if (_ledBuffer) free(_ledBuffer);                 // should not happen
     if (_ledsDirty) free(_ledsDirty);                 // should not happen
-    DEBUG_PRINTLN("MatrixPanel_I2S_DMA allocate memory");
+    USER_PRINTLN("MatrixPanel_I2S_DMA allocate memory");
     _ledsDirty = (byte*) malloc(getBitArrayBytes(_len));  // create LEDs dirty bits
     if (_ledsDirty) setBitArray(_ledsDirty, _len, false); // reset dirty bits
 
@@ -1138,12 +1137,12 @@ uint32_t BusManager::memUsage(BusConfig &bc) {
 
 int BusManager::add(BusConfig &bc) {
   if (getNumBusses() - getNumVirtualBusses() >= WLED_MAX_BUSSES) return -1;
-  DEBUG_PRINTF("BusManager::add(bc.type=%u)\n", bc.type);
+  USER_PRINTF("BusManager::add(bc.type=%u)\n", bc.type);
   if (bc.type >= TYPE_NET_DDP_RGB && bc.type < 96) {
     busses[numBusses] = new BusNetwork(bc);
   } else if (bc.type >= TYPE_HUB75MATRIX && bc.type <= (TYPE_HUB75MATRIX + 10)) {
 #ifdef WLED_ENABLE_HUB75MATRIX
-    DEBUG_PRINTLN("BusManager::add - Adding BusHub75Matrix");
+    USER_PRINTLN("BusManager::add - Adding BusHub75Matrix");
     busses[numBusses] = new BusHub75Matrix(bc);
     USER_PRINTLN("[BusHub75Matrix] ");
 #else
