@@ -664,8 +664,8 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   else if (numPixels <= MAX_PIXELS_4BIT) mxconfig.setPixelColorDepthBits(4);   // 12bit
   else mxconfig.setPixelColorDepthBits(3);                                     //  9bit
 
-  rows = bc.pins[3];
-  cols = bc.pins[4];
+  rows = min(bc.pins[3], (uint8_t) 2); // TODO higher limit
+  cols = min(bc.pins[4], (uint8_t) 2); // TODO higher limit
 
 
 #if defined(ARDUINO_ADAFRUIT_MATRIXPORTAL_ESP32S3) // MatrixPortal ESP32-S3
@@ -976,9 +976,13 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
       virtualDisp->setRotation(0);
       break;
   default:
-    if(mxconfig.chain_length > 1 &&  rows > 0 &&  cols > 0) {
+    if(mxconfig.chain_length > 1 &&  rows >= 1 &&  cols >= 1) { // More than 1 panel, not just horizontal layout
+      // TODO: special case of 128x64 panels actually being 64x64 chain of two internally
       USER_PRINTF("MatrixPanel_I2S_DMA VirtualMatrixPanel %ux%u - %ux%u\n", mxconfig.mx_width, mxconfig.mx_height, rows, cols);
-      virtualDisp = new VirtualMatrixPanel((*display), bc.pins[3], bc.pins[4], mxconfig.mx_width, mxconfig.mx_height, (PANEL_CHAIN_TYPE)bc.skipAmount);
+      virtualDisp = new VirtualMatrixPanel((*display), rows, cols, mxconfig.mx_width, mxconfig.mx_height, (PANEL_CHAIN_TYPE)bc.skipAmount);
+    }
+    else {
+      USER_PRINTLN("MatrixPanel_I2S_DMA PANEL_CHAIN_TYPE.CHAIN_NONE");
     }
     break;
   }  
