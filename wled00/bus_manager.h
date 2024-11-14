@@ -407,7 +407,7 @@ class BusHub75Matrix : public Bus {
     // C++ dirty trick: private static variables are actually _not_ part of the class (however only visibile to class instances). 
     // These variables persist when BusHub75Matrix gets deleted.
     static MatrixPanel_I2S_DMA *activeDisplay;         // active display object
-    static VirtualMatrixPanel  *activeFourScanPanel;   // active fourScan object
+    static VirtualMatrixPanel  *activevirtualDisp;   // active fourScan object
     static HUB75_I2S_CFG activeMXconfig;               // last used mxconfig
     static uint8_t activeType;                         // last used type
     static uint8_t instanceCount;                      // active instances - 0 or 1
