@@ -977,6 +977,7 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
       break;
   default:
     if(mxconfig.chain_length > 1 &&  rows > 0 &&  cols > 0) {
+      USER_PRINTF("MatrixPanel_I2S_DMA VirtualMatrixPanel %ux%u - %ux%u\n", mxconfig.mx_width, mxconfig.mx_height, rows, cols);
       virtualDisp = new VirtualMatrixPanel((*display), bc.pins[3], bc.pins[4], mxconfig.mx_width, mxconfig.mx_height, (PANEL_CHAIN_TYPE)bc.skipAmount);
     }
     break;
