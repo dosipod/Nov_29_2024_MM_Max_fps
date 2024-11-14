@@ -972,6 +972,11 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
       virtualDisp->setPhysicalPanelScanRate(FOUR_SCAN_64PX_HIGH);
       virtualDisp->setRotation(0);
       break;
+  default:
+    if(bc.pins[2] > 1 &&  bc.pins[3] > 0 &&  bc.pins[4]) {
+      virtualDisp = new VirtualMatrixPanel((*display), bc.pins[3], bc.pins[4], mxconfig.mx_width, mxconfig.mx_height, CHAIN_BOTTOM_LEFT_UP);
+    }
+    break;
   }  
 
   if (_valid) {
