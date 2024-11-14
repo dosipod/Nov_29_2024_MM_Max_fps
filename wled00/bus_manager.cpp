@@ -664,6 +664,9 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   else if (numPixels <= MAX_PIXELS_4BIT) mxconfig.setPixelColorDepthBits(4);   // 12bit
   else mxconfig.setPixelColorDepthBits(3);                                     //  9bit
 
+  rows = bc.pins[3];
+  cols = bc.pins[4];
+
 
 #if defined(ARDUINO_ADAFRUIT_MATRIXPORTAL_ESP32S3) // MatrixPortal ESP32-S3
 
@@ -973,8 +976,8 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
       virtualDisp->setRotation(0);
       break;
   default:
-    if(bc.pins[2] > 1 &&  bc.pins[3] > 0 &&  bc.pins[4]) {
-      virtualDisp = new VirtualMatrixPanel((*display), bc.pins[3], bc.pins[4], mxconfig.mx_width, mxconfig.mx_height, CHAIN_BOTTOM_LEFT_UP);
+    if(mxconfig.chain_length > 1 &&  rows > 0 &&  cols > 0) {
+      virtualDisp = new VirtualMatrixPanel((*display), bc.pins[3], bc.pins[4], mxconfig.mx_width, mxconfig.mx_height, (PANEL_CHAIN_TYPE)bc.skipAmount);
     }
     break;
   }  
