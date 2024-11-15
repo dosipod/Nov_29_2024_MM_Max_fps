@@ -524,7 +524,7 @@ void BusNetwork::cleanup() {
 
 // BusHub75Matrix "global" variables (static members)
 MatrixPanel_I2S_DMA* BusHub75Matrix::activeDisplay = nullptr;
-VirtualMatrixPanel*  BusHub75Matrix::activeFourScanPanel = nullptr;
+VirtualMatrixPanel*  BusHub75Matrix::activevirtualDisp = nullptr;
 HUB75_I2S_CFG BusHub75Matrix::activeMXconfig = HUB75_I2S_CFG();
 uint8_t BusHub75Matrix::activeType = 0;
 uint8_t BusHub75Matrix::instanceCount = 0;
@@ -572,7 +572,7 @@ uint8_t BusHub75Matrix::last_bri = 0;
 
 BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWhite) {
   MatrixPanel_I2S_DMA* display = nullptr;
-  VirtualMatrixPanel*  fourScanPanel = nullptr;
+  VirtualMatrixPanel*  virtualDisp = nullptr;
   HUB75_I2S_CFG mxconfig;
   size_t lastHeap = ESP.getFreeHeap();
 
@@ -664,6 +664,9 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   else if (numPixels <= MAX_PIXELS_6BIT) mxconfig.setPixelColorDepthBits(6);   // 18bit
   else if (numPixels <= MAX_PIXELS_4BIT) mxconfig.setPixelColorDepthBits(4);   // 12bit
   else mxconfig.setPixelColorDepthBits(3);                                     //  9bit
+
+  rows = min(bc.pins[3], (uint8_t) 2); // TODO higher limit
+  cols = min(bc.pins[4], (uint8_t) 2); // TODO higher limit
 
 
 #if defined(ARDUINO_ADAFRUIT_MATRIXPORTAL_ESP32S3) // MatrixPortal ESP32-S3
@@ -850,7 +853,7 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
       delete activeDisplay;
       //#endif
       activeDisplay = nullptr;
-      activeFourScanPanel = nullptr;
+      activevirtualDisp = nullptr;
       #if defined(CONFIG_IDF_TARGET_ESP32S3)  // runtime reconfiguration is not working on -S3
       USER_PRINTLN("\n\n****** MatrixPanel_I2S_DMA !KABOOM WARNING! Reboot needed to change driver options ***********\n");
       errorFlag = ERR_REBOOT_NEEDED;
@@ -865,13 +868,13 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
     newDisplay = true;
   } else {
     display = activeDisplay;                       // continue with existing matrix object
-    fourScanPanel = activeFourScanPanel;
+    virtualDisp = activevirtualDisp;
   }
 
   if (display == nullptr) {
       USER_PRINTLN("****** MatrixPanel_I2S_DMA !KABOOM! driver allocation failed ***********");
       activeDisplay = nullptr;
-      activeFourScanPanel = nullptr;
+      activevirtualDisp = nullptr;
       USER_PRINT(F("heap usage: ")); USER_PRINTLN(int(lastHeap - ESP.getFreeHeap()));
       return;
   }
@@ -952,32 +955,42 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   switch(bc.type) {
     case 105:
       USER_PRINTLN("MatrixPanel_I2S_DMA FOUR_SCAN_32PX_HIGH - 32x32");
-      if (!fourScanPanel) fourScanPanel = new VirtualMatrixPanel((*display), 1, 1, 32, 32);
-      fourScanPanel->setPhysicalPanelScanRate(FOUR_SCAN_32PX_HIGH);
-      fourScanPanel->setRotation(0);
+      if (!virtualDisp) virtualDisp = new VirtualMatrixPanel((*display), 1, 1, 32, 32);
+      virtualDisp->setPhysicalPanelScanRate(FOUR_SCAN_32PX_HIGH);
+      virtualDisp->setRotation(0);
       break;
     case 106:
       USER_PRINTLN("MatrixPanel_I2S_DMA FOUR_SCAN_32PX_HIGH - 64x32");
-      if (!fourScanPanel) fourScanPanel = new VirtualMatrixPanel((*display), 1, 1, 64, 32);
-      fourScanPanel->setPhysicalPanelScanRate(FOUR_SCAN_32PX_HIGH);
-      fourScanPanel->setRotation(0);
+      if (!virtualDisp) virtualDisp = new VirtualMatrixPanel((*display), 1, 1, 64, 32);
+      virtualDisp->setPhysicalPanelScanRate(FOUR_SCAN_32PX_HIGH);
+      virtualDisp->setRotation(0);
       break;
     case 107:
       USER_PRINTLN("MatrixPanel_I2S_DMA FOUR_SCAN_64PX_HIGH");
-      if (!fourScanPanel) fourScanPanel = new VirtualMatrixPanel((*display), 1, 1, 64, 64);
-      fourScanPanel->setPhysicalPanelScanRate(FOUR_SCAN_64PX_HIGH);
-      fourScanPanel->setRotation(0);
+      if (!virtualDisp) virtualDisp = new VirtualMatrixPanel((*display), 1, 1, 64, 64);
+      virtualDisp->setPhysicalPanelScanRate(FOUR_SCAN_64PX_HIGH);
+      virtualDisp->setRotation(0);
       break;
     case 108: // untested
       USER_PRINTLN("MatrixPanel_I2S_DMA 128x64 FOUR_SCAN_64PX_HIGH");
-      if (!fourScanPanel) fourScanPanel = new VirtualMatrixPanel((*display), 1, 1, 128, 64);
-      fourScanPanel->setPhysicalPanelScanRate(FOUR_SCAN_64PX_HIGH);
-      fourScanPanel->setRotation(0);
+      if (!virtualDisp) virtualDisp = new VirtualMatrixPanel((*display), 1, 1, 128, 64);
+      virtualDisp->setPhysicalPanelScanRate(FOUR_SCAN_64PX_HIGH);
+      virtualDisp->setRotation(0);
       break;
+  default:
+    if(mxconfig.chain_length > 1 &&  rows >= 1 &&  cols >= 1) { // More than 1 panel, not just horizontal layout
+      // TODO: special case of 128x64 panels actually being 64x64 chain of two internally
+      USER_PRINTF("MatrixPanel_I2S_DMA VirtualMatrixPanel %ux%u - %ux%u\n", mxconfig.mx_width, mxconfig.mx_height, rows, cols);
+      virtualDisp = new VirtualMatrixPanel((*display), rows, cols, mxconfig.mx_width, mxconfig.mx_height, (PANEL_CHAIN_TYPE)bc.skipAmount);
+    }
+    else {
+      USER_PRINTLN("MatrixPanel_I2S_DMA PANEL_CHAIN_TYPE.CHAIN_NONE");
+    }
+    break;
   }  
 
   if (_valid) {
-    _panelWidth = fourScanPanel ? fourScanPanel->width() : display->width();  // cache width - it will never change
+    _panelWidth = virtualDisp ? virtualDisp->width() : display->width();  // cache width - it will never change
   }
 
   USER_PRINT(F("MatrixPanel_I2S_DMA "));
@@ -995,7 +1008,7 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
     // config is active, copy to global
     activeType = bc.type;
     activeDisplay = display;
-    activeFourScanPanel = fourScanPanel;
+    activevirtualDisp = virtualDisp;
     if (newDisplay) memcpy(&activeMXconfig, &mxconfig, sizeof(mxconfig));
   }
   instanceCount++;
@@ -1020,7 +1033,7 @@ void __attribute__((hot)) BusHub75Matrix::setPixelColor(uint16_t pix, uint32_t c
   else {
     // no double buffer allocated --> directly draw pixel
     MatrixPanel_I2S_DMA* display = BusHub75Matrix::activeDisplay;
-    VirtualMatrixPanel*  fourScanPanel = BusHub75Matrix::activeFourScanPanel;
+    VirtualMatrixPanel*  virtualDisp = BusHub75Matrix::activevirtualDisp;
     #ifndef NO_CIE1931
     c = unGamma24(c); // to use the driver linear brightness feature, we first need to undo WLED gamma correction
     #endif
@@ -1028,11 +1041,11 @@ void __attribute__((hot)) BusHub75Matrix::setPixelColor(uint16_t pix, uint32_t c
     uint8_t g = G(c);
     uint8_t b = B(c);
 
-    if(fourScanPanel != nullptr) {
+    if(virtualDisp != nullptr) {
       int width = _panelWidth;
       int x = pix % width;
       int y = pix / width;
-      fourScanPanel->drawPixelRGB888(int16_t(x), int16_t(y), r, g, b);
+      virtualDisp->drawPixelRGB888(int16_t(x), int16_t(y), r, g, b);
     } else {
       int width = _panelWidth;
       int x = pix % width;
@@ -1071,10 +1084,10 @@ void __attribute__((hot)) BusHub75Matrix::show(void) {
 
   if (_ledBuffer) {
     // write out buffered LEDs
-    VirtualMatrixPanel*  fourScanPanel = BusHub75Matrix::activeFourScanPanel;
-    bool isFourScan = (fourScanPanel != nullptr);
-    //if (isFourScan) fourScanPanel->setRotation(0);
-    unsigned height = isFourScan ? fourScanPanel->height() : display->height();
+    VirtualMatrixPanel*  virtualDisp = BusHub75Matrix::activevirtualDisp;
+    bool isVirtualDisp = (virtualDisp != nullptr);
+    //if (isVirtualDisp) virtualDisp->setRotation(0);
+    unsigned height = isVirtualDisp ? virtualDisp->height() : display->height();
     unsigned width = _panelWidth;
 
     // Cache pointers to LED array and bitmask array, to avoid repeated accesses
@@ -1098,7 +1111,7 @@ void __attribute__((hot)) BusHub75Matrix::show(void) {
         uint8_t g = c.g;
         uint8_t b = c.b;
         #endif
-        if (isFourScan) fourScanPanel->drawPixelRGB888(int16_t(x), int16_t(y), r, g, b);
+        if (isVirtualDisp) virtualDisp->drawPixelRGB888(int16_t(x), int16_t(y), r, g, b);
         else display->drawPixelRGB888(int16_t(x), int16_t(y), r, g, b);
       }
       pix ++;
@@ -1109,7 +1122,7 @@ void __attribute__((hot)) BusHub75Matrix::show(void) {
 
 void BusHub75Matrix::cleanup() {
   MatrixPanel_I2S_DMA* display = BusHub75Matrix::activeDisplay;
-  VirtualMatrixPanel*  fourScanPanel = BusHub75Matrix::activeFourScanPanel;
+  VirtualMatrixPanel*  virtualDisp = BusHub75Matrix::activevirtualDisp;
   if (display) display->clearScreen();
 
 #if !defined(CONFIG_IDF_TARGET_ESP32S3) // S3: don't stop, as we want to re-use the driver later
@@ -1122,11 +1135,11 @@ void BusHub75Matrix::cleanup() {
 
   _valid = false;
   deallocatePins();
-  //if (fourScanPanel != nullptr) delete fourScanPanel;  // warning: deleting object of polymorphic class type 'VirtualMatrixPanel' which has non-virtual destructor might cause undefined behavior
+  //if (virtualDisp != nullptr) delete virtualDisp;  // warning: deleting object of polymorphic class type 'VirtualMatrixPanel' which has non-virtual destructor might cause undefined behavior
 #if !defined(CONFIG_IDF_TARGET_ESP32S3) // S3: don't delete, as we want to re-use the driver later
   if (display) delete display;
   activeDisplay = nullptr;
-  activeFourScanPanel = nullptr;
+  activevirtualDisp = nullptr;
   USER_PRINTLN("HUB75 deleted.");
 #else
   USER_PRINTLN("HUB75 cleanup done.");
