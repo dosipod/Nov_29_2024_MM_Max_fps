@@ -121,10 +121,9 @@ void handleSerial()
           return;
         } else if (next == 'v') {
           Serial.print("WLED"); Serial.write(' '); Serial.println(VERSION);
-
         } else if (next == 'R') {
-          Serial.println("WLED Restaarting!");
-          esp_restart();
+          Serial.println("WLED Restarting!");
+          ESP.restart();
         } else if (next == '^') {
           #ifdef ARDUINO_ARCH_ESP32
           esp_err_t err;
@@ -143,7 +142,7 @@ void handleSerial()
             if (err == ESP_OK) {
               USER_PRINTF("Switching boot partitions from %s to %s in 3 seconds!\n",boot_partition->label,new_boot_partition->label);
               delay(3000);
-              esp_restart();
+              ESP.restart();
             } else {
               USER_PRINTF("Looks like the other app partition (%s) is invalid. Ignoring.\n",new_boot_partition->label);
             }
