@@ -1403,8 +1403,10 @@ void WLED::handleConnection()
   } else if (!interfacesInited) { //newly connected
     USER_PRINT(F("Connected! IP address: "));
     if (Network.isEthernet()) {
+      #if ESP32
       USER_PRINT(ETH.localIP());
       USER_PRINTLN(" via Ethernet");
+      #endif
     } else {
       USER_PRINT(Network.localIP());
       USER_PRINTLN(" via WiFi");
