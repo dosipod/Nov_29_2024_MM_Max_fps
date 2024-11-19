@@ -114,15 +114,10 @@ void Segment::allocLeds() {
   if ((size > 0) && (!ledsrgb || size > ledsrgbSize)) {    //softhack dont allocate zero bytes
     USER_PRINTF("allocLeds (%d,%d to %d,%d), %u from %u\n", start, startY, stop, stopY, size, ledsrgb?ledsrgbSize:0);
     if (ledsrgb) free(ledsrgb);   // we need a bigger buffer, so free the old one first
-    #if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM) && defined(WLED_USE_PSRAM)
-    if (psramFound()){
-      ledsrgb = (CRGB*)ps_calloc(size, 1);
-    } else {
-      ledsrgb = (CRGB*)calloc(size, 1);
-    }
-    #else
+    #ifdef ESP32
     ledsrgb = (CRGB*)heap_caps_calloc_prefer(size, 1, 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
-    // ledsrgb = (CRGB*)calloc(size, 1);
+    #else
+    ledsrgb = (CRGB*)calloc(size, 1);
     #endif
     ledsrgbSize = ledsrgb?size:0;
     if (ledsrgb == nullptr) {
@@ -243,14 +238,11 @@ bool Segment::allocateData(size_t len) {
     return false; //not enough memory
   }
   #endif
-  // do not use SPI RAM on ESP32 since it is slow
-  #if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM) && defined(WLED_USE_PSRAM)
-  if (psramFound())
-   data = (byte*) ps_malloc(len);
-  else
+  #ifdef ESP32
+  data = (byte*) heap_caps_calloc_prefer(len, 1, 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
+  #else
+  data = (byte*) calloc(len, 1);
   #endif
-    // data = (byte*) malloc(len);
-    data = (byte*) heap_caps_calloc_prefer(len, 1, 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
   if (!data) {
       _dataLen = 0; // WLEDMM reset dataLen
       errorFlag = ERR_LOW_MEM; // WLEDMM raise errorflag
@@ -2674,15 +2666,10 @@ bool WS2812FX::deserializeMap(uint8_t n) {
     }
     if ((size > 0) && (customMappingTable == nullptr)) { // second try
       DEBUG_PRINTLN("deserializeMap: trying to get fresh memory block.");
-      #if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM) && defined(WLED_USE_PSRAM)
-      if (psramFound()) {
-        customMappingTable = (uint16_t*) ps_calloc(size, sizeof(uint16_t));
-      } else {
-        customMappingTable = (uint16_t*) calloc(size, sizeof(uint16_t));
-      }
-      #else
-      // customMappingTable = (uint16_t*) calloc(size, sizeof(uint16_t));
+      #ifdef ESP32
       customMappingTable = (uint16_t*) heap_caps_calloc_prefer(size, sizeof(uint16_t), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
+      #else
+      customMappingTable = (uint16_t*) calloc(size, sizeof(uint16_t));
       #endif
       if (customMappingTable == nullptr) { 
         DEBUG_PRINTLN("deserializeMap: alloc failed!");
