@@ -473,17 +473,11 @@ BusNetwork::BusNetwork(BusConfig &bc, const ColorOrderMap &com) : Bus(bc.type, b
       break;
   }
   _UDPchannels = _rgbw ? 4 : 3;
-  // #if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM) && defined(WLED_USE_PSRAM)
-  // if (psramFound()){
-  //   _data = (byte*) ps_calloc((bc.count * _UDPchannels)+15, sizeof(byte)); // adding 15 as SIMD math is aligned to 16 units per calculation
-  // } else {
-  //   _data = (byte*) calloc((bc.count * _UDPchannels)+15, sizeof(byte));
-  // }
-  // #else
-  // _data = (byte*) calloc((bc.count * _UDPchannels)+15, sizeof(byte));
-  // #endif
-  _data = (byte*) heap_caps_calloc_prefer((bc.count * _UDPchannels)+15, sizeof(byte), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
-
+  #ifdef ESP32
+  _data = (byte*) heap_caps_calloc_prefer((bc.count * _UDPchannels)+15, sizeof(byte), 3, MALLOC_CAP_DEFAULT, MALLOC_CAP_SPIRAM);
+  #else
+  _data = (byte*) calloc((bc.count * _UDPchannels)+15, sizeof(byte));
+  #endif
   if (_data == nullptr) return;
   _len = bc.count;
   _colorOrder = bc.colorOrder;
@@ -557,6 +551,66 @@ uint32_t IRAM_ATTR BusNetwork::getPixelColor(uint16_t pix) const {
     }
   }
   return RGBW32(_data[offset+0], _data[offset+1], _data[offset+2], _rgbw ? (_data[offset+3]) : 0);
+=======
+  _artnet_fps_limit = max(uint8_t(1), bc.artnet_fps_limit);
+  USER_PRINTF(" %u.%u.%u.%u]\n", bc.pins[0],bc.pins[1],bc.pins[2],bc.pins[3]);
+}
+
+void IRAM_ATTR_YN BusNetwork::setPixelColor(uint16_t pix, uint32_t c) {
+    if (!_valid || pix >= _len) return;
+    if (_rgbw) c = autoWhiteCalc(c);
+    if (_cct >= 1900) c = colorBalanceFromKelvin(_cct, c); // color correction from CCT
+
+    uint16_t offset = pix * _UDPchannels;
+    uint8_t co = _colorOrderMap.getPixelColorOrder(pix + _start, _colorOrder);
+
+    if (_colorOrder != co || _colorOrder != COL_ORDER_RGB) {
+        switch (co) {
+            case COL_ORDER_GRB:
+                _data[offset] = G(c); _data[offset+1] = R(c); _data[offset+2] = B(c);
+                break;
+            case COL_ORDER_RGB:
+                _data[offset] = R(c); _data[offset+1] = G(c); _data[offset+2] = B(c);
+                break;
+            case COL_ORDER_BRG:
+                _data[offset] = B(c); _data[offset+1] = R(c); _data[offset+2] = G(c);
+                break;
+            case COL_ORDER_RBG:
+                _data[offset] = R(c); _data[offset+1] = B(c); _data[offset+2] = G(c);
+                break;
+            case COL_ORDER_GBR:
+                _data[offset] = G(c); _data[offset+1] = B(c); _data[offset+2] = R(c);
+                break;
+            case COL_ORDER_BGR:
+                _data[offset] = B(c); _data[offset+1] = G(c); _data[offset+2] = R(c);
+                break;
+        }
+        if (_rgbw) _data[offset+3] = W(c);
+    } else {
+        _data[offset] = R(c); _data[offset+1] = G(c); _data[offset+2] = B(c);
+        if (_rgbw) _data[offset+3] = W(c);
+    }
+}
+
+uint32_t IRAM_ATTR_YN BusNetwork::getPixelColor(uint16_t pix) const {
+    if (!_valid || pix >= _len) return 0;
+    uint16_t offset = pix * _UDPchannels;
+    uint8_t co = _colorOrderMap.getPixelColorOrder(pix + _start, _colorOrder);
+
+    uint8_t r = _data[offset + 0];
+    uint8_t g = _data[offset + 1];
+    uint8_t b = _data[offset + 2];
+    uint8_t w = _rgbw ? _data[offset + 3] : 0;
+
+    switch (co) {
+        case COL_ORDER_GRB: return RGBW32(g, r, b, w);
+        case COL_ORDER_RGB: return RGBW32(r, g, b, w);
+        case COL_ORDER_BRG: return RGBW32(b, r, g, w);
+        case COL_ORDER_RBG: return RGBW32(r, b, g, w);
+        case COL_ORDER_GBR: return RGBW32(g, b, r, w);
+        case COL_ORDER_BGR: return RGBW32(b, g, r, w);
+        default: return RGBW32(r, g, b, w); // default to RGB order
+    }
 }
 
 void BusNetwork::show() {
@@ -663,6 +717,8 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   // fake bus flags
   _needsRefresh = mxconfig.latch_blanking == 1;
   reversed = mxconfig.clkphase;
+
+  if (bc.type > 104) mxconfig.driver = HUB75_I2S_CFG::FM6124;  // use FM6124 for "outdoor" panels - workaround until we can make the driver user-configurable
 
   // How many panels we have connected, cap at sane value, prevent bad data preventing boot due to low memory
   #if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(BOARD_HAS_PSRAM)        // ESP32-S3: allow up to 6 panels

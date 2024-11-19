@@ -760,23 +760,37 @@ void sendSysInfoUDP()
 
 static       size_t sequenceNumber = 0; // this needs to be shared across all outputs
 static const byte   ART_NET_HEADER[12] PROGMEM = {0x41,0x72,0x74,0x2d,0x4e,0x65,0x74,0x00,0x00,0x50,0x00,0x0e};
-static uint_fast16_t framenumber = 0;
 
-#if defined(ARDUINO_ARCH_ESP32P4) || defined(ARDUINO_ARCH_ESP32S3_OFF) // S3 not working yet.
+#if defined(ARDUINO_ARCH_ESP32P4)
 extern "C" {
-  int asm_mul16x16(uint8_t* outpacket, uint8_t* brightness, uint16_t num_loops, uint8_t* pixelbuffer);
+  int p4_mul16x16(uint8_t* outpacket, uint8_t* brightness, uint16_t num_loops, uint8_t* pixelbuffer);
 }
 #endif
 
-uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t length, uint8_t *buffer, uint8_t bri, bool isRGBW, uint8_t outputs, uint16_t leds_per_output, uint8_t fps_limit)  {
+uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t length, uint8_t *buffer, uint8_t bri, bool isRGBW, uint8_t outputs, uint16_t leds_per_output, uint8_t fps_limit)  {
 
   if (!(apActive || interfacesInited) || !client[0] || !length) return 1;  // network not initialised or dummy/unset IP address  031522 ajn added check for ap
 
   // For some reason, this is faster outside of the case block...
   //
-  // static byte *packet_buffer = (byte *) calloc(530, sizeof(byte)); // don't care if RGB or RGBW, assume enough (18 header+512 data) for both. calloc zeros.
-  static byte *packet_buffer = (byte *) heap_caps_calloc_prefer(530, sizeof(byte), 3, MALLOC_CAP_IRAM_8BIT, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT); // MALLOC_CAP_TCM seems to have alignment issues.
+  #ifdef ESP32
+  static byte *packet_buffer = (byte *) heap_caps_calloc_prefer(530, sizeof(byte), 2, MALLOC_CAP_DEFAULT, MALLOC_CAP_SPIRAM);
+  #else
+  static byte *packet_buffer = (byte *) calloc(530, sizeof(byte));
+  #endif
   if (packet_buffer[0] != 0x41) memcpy(packet_buffer, ART_NET_HEADER, 12); // copy in the Art-Net header if it isn't there already
+
+  // Volumetric test code
+  // static byte *buffer = (byte *) heap_caps_calloc_prefer(length*3*72, sizeof(byte), 3, MALLOC_CAP_IRAM_8BIT, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT); // MALLOC_CAP_TCM seems to have alignment issues.
+  // memmove(buffer+(length*3),buffer,length*3*7);
+  // memcpy(buffer,buffer_in,length*3);
+  // framenumber++;
+  // if (framenumber >= 8) {
+  //   framenumber = 0;
+  // } else {
+  //   // return 0;
+  // }
+  // length *= 8;
 
   switch (type) {
     case 0: // DDP
@@ -850,7 +864,7 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
     } break;
     case 2: //Art-Net
     {
-      static uint_fast16_t artnetlimiter = millis()+(1000/fps_limit);
+      static unsigned long artnetlimiter = micros()+(1000000/fps_limit);
       while (artnetlimiter > micros()) {
         if (ArtNetSkipFrame) {
           return 0; // Let WLED keep generating effect frames and we output an Art-Net frame when fps_limit is reached.
@@ -874,7 +888,7 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
       uint_fast16_t datatotal = 0;
       uint_fast16_t packetstotal = 0;
       #endif
-      uint_fast16_t timer = micros();
+      unsigned long timer = micros();
 
       AsyncUDP artnetudp;// AsyncUDP so we can just blast packets.
 
@@ -924,8 +938,8 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
           bri = 0; // Set all brightness to 0 but keep all calculations the same and keep sending packets.
           #endif
 
-          #if defined(ARDUINO_ARCH_ESP32P4) || defined(ARDUINO_ARCH_ESP32S3_OFF) // S3 not working yet.
-          asm_mul16x16(packet_buffer+18, &bri, (packetSize >> 4)+1, buffer+bufferOffset);
+          #if defined(ARDUINO_ARCH_ESP32P4)
+          p4_mul16x16(packet_buffer+18, &bri, (packetSize >> 4)+1, buffer+bufferOffset);
           #else
           if (bri == 255) { // speed hack - don't adjust brightness if full brightness
             memcpy(packet_buffer+18, buffer+bufferOffset, packetSize);
@@ -1001,14 +1015,14 @@ uint8_t IRAM_ATTR realtimeBroadcast(uint8_t type, IPAddress client, uint16_t len
       
       #endif
 
-      artnetlimiter = micros()+(1000000/fps_limit)-(micros()-timer);
+      artnetlimiter = timer + (1000000/fps_limit);
 
       // This is the proper stop if pixels = Art-Net output.
       
       #ifdef ARTNET_TIMER
       float mbps = (datatotal*8)/((micros()-timer)*0.95367431640625f);
       // the "micros()" calc is just to limit the print to a more random debug output so it doesn't overwhelm the terminal
-      if (micros() % 100 < 5) USER_PRINTF("UDP for %u pixels took %lu micros. %u data in %u total packets. %2.2f mbit/sec at %u FPS.\n",length, micros()-timer, datatotal, packetstotal, mbps, strip.getFps());
+      if (micros() % 100 < 3) USER_PRINTF("UDP for %u pixels took %lu micros. %u data in %u total packets. %2.2f mbit/sec at %u FPS.\n",length, micros()-timer, datatotal, packetstotal, mbps, strip.getFps());
       #endif
     
       break;
