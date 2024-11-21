@@ -474,7 +474,7 @@ BusNetwork::BusNetwork(BusConfig &bc, const ColorOrderMap &com) : Bus(bc.type, b
   }
   _UDPchannels = _rgbw ? 4 : 3;
   #ifdef ESP32
-  _data = (byte*) heap_caps_calloc_prefer((bc.count * _UDPchannels)+15, sizeof(byte), 3, MALLOC_CAP_DEFAULT, MALLOC_CAP_SPIRAM);
+  _data = (byte*) heap_caps_calloc_prefer((bc.count * _UDPchannels)+15, sizeof(byte), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
   #else
   _data = (byte*) calloc((bc.count * _UDPchannels)+15, sizeof(byte));
   #endif
@@ -596,7 +596,7 @@ uint8_t BusHub75Matrix::last_bri = 0;
     // PSRAM not used for pixel buffers
     #define MAX_PIXELS_8BIT (128 * 64)
     #define MAX_PIXELS_6BIT (192 * 64)
-    #define MAX_PIXELS_4BIT (192 * 128) // MAX_PIXELS_4BIT (256 * 64)
+    #define MAX_PIXELS_4BIT (256 * 64)
   #endif
 #elif defined(CONFIG_IDF_TARGET_ESP32S3) && defined(BOARD_HAS_PSRAM)
   // standard esp32-S3 with quad PSRAM
@@ -987,17 +987,18 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
     if (_ledBuffer) free(_ledBuffer);                 // should not happen
     if (_ledsDirty) free(_ledsDirty);                 // should not happen
 
+    #if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(CONFIG_SPIRAM_MODE_OCT)
+    _ledsDirty = (byte*) heap_caps_malloc_prefer(getBitArrayBytes(_len), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
+    #else
     _ledsDirty = (byte*) malloc(getBitArrayBytes(_len));  // create LEDs dirty bits
+    #endif
+
     if (_ledsDirty) setBitArray(_ledsDirty, _len, false); // reset dirty bits
 
-    #if defined(CONFIG_IDF_TARGET_ESP32S3) && CONFIG_SPIRAM_MODE_OCT && defined(BOARD_HAS_PSRAM) && (defined(WLED_USE_PSRAM) || defined(WLED_USE_PSRAM_JSON))
-      if (psramFound()) {
-        _ledBuffer = (CRGB*) ps_calloc(_len, sizeof(CRGB));  // create LEDs buffer (initialized to BLACK)
-      } else {
-        _ledBuffer = (CRGB*) calloc(_len, sizeof(CRGB));  // create LEDs buffer (initialized to BLACK)
-      }
+    #if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(CONFIG_SPIRAM_MODE_OCT)
+    _ledBuffer = (CRGB*) heap_caps_calloc_prefer(_len, sizeof(CRGB), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
     #else
-      _ledBuffer = (CRGB*) calloc(_len, sizeof(CRGB));  // create LEDs buffer (initialized to BLACK)
+    _ledBuffer = (CRGB*) calloc(_len, sizeof(CRGB));  // create LEDs buffer (initialized to BLACK)
     #endif
   }
 

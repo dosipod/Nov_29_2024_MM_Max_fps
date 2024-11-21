@@ -305,10 +305,10 @@ void Segment::setUpLeds() {
     ledsrgbSize = length() * sizeof(CRGB); // also set this when using global leds.
     #endif
   } else if (length() > 0) { //WLEDMM we always want a new buffer //softhack007 quickfix - avoid malloc(0) which is undefined behaviour (should not happen, but i've seen it)
-    #if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM) && defined(WLED_USE_PSRAM)
-    if (psramFound())
-     ledsrgb = (CRGB*)ps_malloc(sizeof(CRGB)*length()); // softhack007 disabled; putting leds into psram leads to horrible slowdown on WROVER boards
-    else
+    #ifdef ESP32
+    ledsrgb = (CRGB*) heap_caps_malloc_prefer(sizeof(CRGB)*length(), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
+    #else
+    ledsrgb = (CRGB*)malloc(sizeof(CRGB)*length()); 
     #endif
     allocLeds(); //WLEDMM
     //USER_PRINTF("\nsetUpLeds() local LEDs: startX=%d stopx=%d startY=%d stopy=%d maxwidth=%d; length=%d, size=%d\n\n", start, stop, startY, stopY, Segment::maxWidth, length(), ledsrgbSize/3);
@@ -1845,13 +1845,11 @@ void WS2812FX::finalizeInit(void)
   }
   if (useLedsArray && getLengthTotal()>0) { // WLEDMM avoid malloc(0)
     size_t arrSize = sizeof(CRGB) * getLengthTotal();
-    // softhack007 disabled; putting leds into psram leads to horrible slowdown on WROVER boards (see setUpLeds())
-    #if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM) && defined(WLED_USE_PSRAM)
-    if (psramFound())
-     Segment::_globalLeds = (CRGB*) ps_malloc(arrSize);
-    else
+    #ifdef ESP32
+    Segment::_globalLeds = (CRGB*) heap_caps_calloc_prefer(arrSize, 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
+    #else
+    if (arrSize > 0) Segment::_globalLeds = (CRGB*) malloc(arrSize); // WLEDMM avoid malloc(0)
     #endif
-      if (arrSize > 0) Segment::_globalLeds = (CRGB*) malloc(arrSize); // WLEDMM avoid malloc(0)
     if ((Segment::_globalLeds != nullptr) && (arrSize > 0)) memset(Segment::_globalLeds, 0, arrSize); // WLEDMM avoid dereferencing nullptr
     if ((Segment::_globalLeds == nullptr) && (arrSize > 0)) errorFlag = ERR_LOW_MEM; // WLEDMM raise errorflag
   }

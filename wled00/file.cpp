@@ -65,7 +65,11 @@ static bool bufferedFind(const char *target, bool fromStart = true) {
   size_t targetLen = strlen(target);
 
   size_t index = 0;
+  #if ESP32
+  byte *buf = (byte *) heap_caps_malloc_prefer(FS_BUFSIZE,2,MALLOC_CAP_SPIRAM,MALLOC_CAP_INTERNAL);
+  #else 
   byte buf[FS_BUFSIZE];
+  #endif
   if (fromStart) f.seek(0);
 
   while (f.position() < f.size() -1) {

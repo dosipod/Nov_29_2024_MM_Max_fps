@@ -154,12 +154,8 @@ public:
     if (_onRequest) {
       _contentLength = total;
       if (total > 0 && request->_tempObject == NULL && (int)total < _maxContentLength) {
-        #if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM) && defined(WLED_USE_PSRAM)
-        if (psramFound()) {
-          request->_tempObject = ps_malloc(total);
-        } else {
-          request->_tempObject = malloc(total);
-        }
+        #if ESP32
+        request->_tempObject = heap_caps_malloc_prefer(total,2,MALLOC_CAP_SPIRAM,MALLOC_CAP_INTERNAL);
         #else
         request->_tempObject = malloc(total);
         #endif
