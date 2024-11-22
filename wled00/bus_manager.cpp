@@ -585,7 +585,7 @@ uint8_t BusHub75Matrix::last_bri = 0;
 // --------------------------
 // Bitdepth reduction based on panel size
 // --------------------------
-#if defined(CONFIG_IDF_TARGET_ESP32S3) && CONFIG_SPIRAM_MODE_OCT && defined(BOARD_HAS_PSRAM) && (defined(WLED_USE_PSRAM) || defined(WLED_USE_PSRAM_JSON))
+#if defined(CONFIG_IDF_TARGET_ESP32S3) && CONFIG_SPIRAM_MODE_OCT && defined(BOARD_HAS_PSRAM)
   // esp32-S3 with octal PSRAM
   #if defined(SPIRAM_FRAMEBUFFER)
     // when PSRAM is used for pixel buffers
