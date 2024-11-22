@@ -231,7 +231,7 @@ bool Segment::allocateData(size_t len) {
   //DEBUG_PRINTF("allocateData(%u) start %d, stop %d, vlen %d\n", len, start, stop, virtualLength());
   deallocateData();
   if (len == 0) return false; // nothing to do
-  #if defined(ARDUINO_ARCH_ESP32) && !defined(BOARD_HAS_PSRAM) // !defined(WLED_USE_PSRAM)
+  #if defined(ARDUINO_ARCH_ESP32) && !defined(BOARD_HAS_PSRAM)
   if (Segment::getUsedSegmentData() + len > MAX_SEGMENT_DATA) {
     //USER_PRINTF("Segment::allocateData: Segment data quota exceeded! used:%u request:%u max:%d\n", Segment::getUsedSegmentData(), len, MAX_SEGMENT_DATA);
     if (len > 0) errorFlag = ERR_LOW_SEG_MEM;  // WLEDMM raise errorflag
@@ -2652,12 +2652,8 @@ bool WS2812FX::deserializeMap(uint8_t n) {
 
     // don't use new / delete
     if ((size > 0) && (customMappingTable != nullptr)) {
-      #if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM) && defined(WLED_USE_PSRAM)
-      if (psramFound()) {
-        customMappingTable = (uint16_t*) ps_realloc(customMappingTable, sizeof(uint16_t) * size); // TroyHacks: This should work? We always have tons of PSRAM
-      } else {
-        customMappingTable = (uint16_t*) reallocf(customMappingTable, sizeof(uint16_t) * size);  // reallocf will free memory if it cannot resize
-      }
+      #if ESP32
+      customMappingTable = (uint16_t*) heap_caps_realloc_prefer(customMappingTable, sizeof(uint16_t) * size, 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_INTERNAL); // TroyHacks: This should work? We always have tons of PSRA
       #else
       customMappingTable = (uint16_t*) reallocf(customMappingTable, sizeof(uint16_t) * size);  // reallocf will free memory if it cannot resize
       #endif

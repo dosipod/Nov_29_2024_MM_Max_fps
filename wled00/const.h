@@ -482,7 +482,7 @@
 #ifdef ESP8266
   #define JSON_BUFFER_SIZE 10240
 #else
- #if defined(BOARD_HAS_PSRAM) && (defined(WLED_USE_PSRAM) || defined(WLED_USE_PSRAM_JSON))
+ #if defined(BOARD_HAS_PSRAM)
   #if defined(ARDUINO_ARCH_ESP32S2) || defined(ARDUINO_ARCH_ESP32C3)
     #if defined(ARDUINO_ARCH_ESP32C3)
       #define JSON_BUFFER_SIZE 44000 // WLEDMM - max 44KB on -C3 with PSRAM (chip has 400kb RAM)

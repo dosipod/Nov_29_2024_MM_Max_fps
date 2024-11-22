@@ -474,7 +474,7 @@ void my_verbose_print_reset_reason(int reason)
 
 void show_psram_info_part1(void)
 {
-#if defined(BOARD_HAS_PSRAM) || defined(WLED_USE_PSRAM)
+#if defined(BOARD_HAS_PSRAM)
   //if (esp_spiram_is_initialized() == false) esp_spiram_init();
   Serial.println(psramFound() ? "ESP32 PSRAM: found.": "ESP32 PSRAM: not found!"); 
   if (!psramFound()) return;
@@ -500,7 +500,7 @@ void show_psram_info_part1(void)
 
 void show_psram_info_part2(void)
 {
-#if defined(BOARD_HAS_PSRAM) || defined(WLED_USE_PSRAM)
+#if defined(BOARD_HAS_PSRAM)
   if (!psramFound()) return;
 
   // usually the next part won't work ...
@@ -582,7 +582,7 @@ void showRealSpeed() {
   Serial.print(  " FREE RAM:      "); Serial.print(ESP.getFreeHeap() / 1024.0, 2); Serial.println(" KB");
   Serial.print(  " MAX RAM alloc: "); Serial.print(ESP.getMaxAllocHeap() / 1024.0, 2); Serial.println(" KB");
 
-#if defined(BOARD_HAS_PSRAM) || defined(WLED_USE_PSRAM)
+#if defined(BOARD_HAS_PSRAM)
   Serial.println();
   show_psram_info_part1();
   if (psramFound()) {

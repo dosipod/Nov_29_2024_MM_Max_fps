@@ -986,11 +986,11 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
 
     if (_ledsDirty) setBitArray(_ledsDirty, _len, false); // reset dirty bits
 
-    #if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(CONFIG_SPIRAM_MODE_OCT)
-    _ledBuffer = (CRGB*) heap_caps_calloc_prefer(_len, sizeof(CRGB), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
-    #else
+    // #if 0 &&  defined(CONFIG_IDF_TARGET_ESP32S3) && defined(CONFIG_SPIRAM_MODE_OCT)
+    // _ledBuffer = (CRGB*) heap_caps_calloc_prefer(_len, sizeof(CRGB), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
+    // #else
     _ledBuffer = (CRGB*) calloc(_len, sizeof(CRGB));  // create LEDs buffer (initialized to BLACK)
-    #endif
+    // #endif
   }
 
   if ((_ledBuffer == nullptr) || (_ledsDirty == nullptr)) {
