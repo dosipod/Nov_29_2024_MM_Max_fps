@@ -978,19 +978,13 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
     if (_ledBuffer) free(_ledBuffer);                 // should not happen
     if (_ledsDirty) free(_ledsDirty);                 // should not happen
 
-    #if 0 && defined(CONFIG_IDF_TARGET_ESP32S3) && defined(CONFIG_SPIRAM_MODE_OCT)
-    _ledsDirty = (byte*) heap_caps_malloc_prefer(getBitArrayBytes(_len), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
-    #else
-    _ledsDirty = (byte*) malloc(getBitArrayBytes(_len));  // create LEDs dirty bits
+    #if ESP32
+    _ledsDirty = (byte*) heap_caps_malloc_prefer(getBitArrayBytes(_len), 3, MALLOC_CAP_INTERNAL, MALLOC_CAP_DEFAULT, MALLOC_CAP_SPIRAM);
+    _ledBuffer = (CRGB*) heap_caps_calloc_prefer(_len, sizeof(CRGB), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
     #endif
 
     if (_ledsDirty) setBitArray(_ledsDirty, _len, false); // reset dirty bits
 
-    #if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(CONFIG_SPIRAM_MODE_OCT)
-    _ledBuffer = (CRGB*) heap_caps_calloc_prefer(_len, sizeof(CRGB), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
-    #else
-    _ledBuffer = (CRGB*) calloc(_len, sizeof(CRGB));  // create LEDs buffer (initialized to BLACK)
-    #endif
   }
 
   if ((_ledBuffer == nullptr) || (_ledsDirty == nullptr)) {
