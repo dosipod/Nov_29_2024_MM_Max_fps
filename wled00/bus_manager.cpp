@@ -879,15 +879,6 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
 
 #endif
 
-  // #ifndef PIXEL_COLOR_DEPTH_BIT
-  //   #define PIXEL_COLOR_DEPTH_BIT 8
-  // #endif
-
-  // mxconfig.setPixelColorDepthBits(PIXEL_COLOR_DEPTH_BIT);
-  mxconfig.double_buff = false; // default to off, known to cause issue with some effects but needs more memory
-  mxconfig.clkphase = false;
-  mxconfig.chain_length = max((u_int8_t) 1, min(bc.pins[0], (u_int8_t) 6)); // prevent bad data preventing boot due to low memory
-
   USER_PRINTF("MatrixPanel_I2S_DMA config - %ux%u (type %u) length: %u, %u bits/pixel.\n", mxconfig.mx_width, mxconfig.mx_height, bc.type, mxconfig.chain_length, mxconfig.getPixelColorDepthBits() * 3);
   DEBUG_PRINT(F("Free heap: ")); DEBUG_PRINTLN(ESP.getFreeHeap()); lastHeap = ESP.getFreeHeap();
 
@@ -987,7 +978,7 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
     if (_ledBuffer) free(_ledBuffer);                 // should not happen
     if (_ledsDirty) free(_ledsDirty);                 // should not happen
 
-    #if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(CONFIG_SPIRAM_MODE_OCT)
+    #if 0 && defined(CONFIG_IDF_TARGET_ESP32S3) && defined(CONFIG_SPIRAM_MODE_OCT)
     _ledsDirty = (byte*) heap_caps_malloc_prefer(getBitArrayBytes(_len), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
     #else
     _ledsDirty = (byte*) malloc(getBitArrayBytes(_len));  // create LEDs dirty bits
@@ -1039,8 +1030,9 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
       break;
   }  
 
+  // Set here to match your physical layout for multiple panels in a matrix layout:
   // virtualDisp = new VirtualMatrixPanel((*dma_display), NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y, VIRTUAL_MATRIX_CHAIN_TYPE); 
-  fourScanPanel = new VirtualMatrixPanel((*display), 2, 3, 64, 64, CHAIN_BOTTOM_RIGHT_UP );
+  fourScanPanel = new VirtualMatrixPanel((*display), 2, 3, 64, 64, CHAIN_BOTTOM_RIGHT_UP);
 
   if (_valid) {
     _panelWidth = fourScanPanel ? fourScanPanel->width() : display->width();  // cache width - it will never change
