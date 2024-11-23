@@ -484,8 +484,8 @@ static bool alocateFFTBuffers(void) {
   if (vReal) free(vReal); // should not happen
   if (vImag) free(vImag); // should not happen
   #ifdef ESP32
-  if ((vReal = (float*) heap_caps_calloc_prefer(sizeof(float), samplesFFT, 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT)) == nullptr) return false; // calloc or die
-  if ((vImag = (float*) heap_caps_calloc_prefer(sizeof(float), samplesFFT, 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT)) == nullptr) return false;
+  if ((vReal = (float*) heap_caps_calloc_prefer(sizeof(float), samplesFFT, 2, MALLOC_CAP_INTERNAL, MALLOC_CAP_SPIRAM)) == nullptr) return false; // calloc or die
+  if ((vImag = (float*) heap_caps_calloc_prefer(sizeof(float), samplesFFT, 2, MALLOC_CAP_INTERNAL, MALLOC_CAP_SPIRAM)) == nullptr) return false;
   #else
   if ((vReal = (float*) calloc(sizeof(float), samplesFFT)) == nullptr) return false; // calloc or die
   if ((vImag = (float*) calloc(sizeof(float), samplesFFT)) == nullptr) return false;
@@ -493,7 +493,7 @@ static bool alocateFFTBuffers(void) {
 #ifdef FFT_MAJORPEAK_HUMAN_EAR
   if (pinkFactors) free(pinkFactors);
   #if ESP32
-  if ((pinkFactors = (float*) heap_caps_calloc_prefer(sizeof(float), samplesFFT, 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT)) == nullptr) return false;
+  if ((pinkFactors = (float*) heap_caps_calloc_prefer(sizeof(float), samplesFFT, 2, MALLOC_CAP_INTERNAL, MALLOC_CAP_SPIRAM)) == nullptr) return false;
   #else
   if ((pinkFactors = (float*) calloc(sizeof(float), samplesFFT)) == nullptr) return false;
   #endif

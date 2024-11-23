@@ -187,14 +187,14 @@
 struct PSRAM_Allocator {
   void* allocate(size_t size) {
     #if ESP32
-    return heap_caps_malloc_prefer(size,2,MALLOC_CAP_SPIRAM,MALLOC_CAP_INTERNAL);
+    return heap_caps_malloc_prefer(size,3,MALLOC_CAP_SPIRAM,MALLOC_CAP_DEFAULT,MALLOC_CAP_INTERNAL);
     #else
     return malloc(size);
     #endif
   }
   void* reallocate(void* ptr, size_t new_size) {
     #if ESP32
-    return heap_caps_realloc_prefer(ptr,new_size,2,MALLOC_CAP_SPIRAM,MALLOC_CAP_INTERNAL);
+    return heap_caps_realloc_prefer(ptr,new_size,3,MALLOC_CAP_SPIRAM,MALLOC_CAP_DEFAULT,MALLOC_CAP_INTERNAL);
     #else
     return realloc(ptr, new_size);
     #endif

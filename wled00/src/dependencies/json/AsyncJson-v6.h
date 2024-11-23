@@ -155,7 +155,7 @@ public:
       _contentLength = total;
       if (total > 0 && request->_tempObject == NULL && (int)total < _maxContentLength) {
         #if ESP32
-        request->_tempObject = heap_caps_malloc_prefer(total,2,MALLOC_CAP_SPIRAM,MALLOC_CAP_INTERNAL);
+        request->_tempObject = heap_caps_malloc_prefer(total,3, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT, MALLOC_CAP_INTERNAL);
         #else
         request->_tempObject = malloc(total);
         #endif

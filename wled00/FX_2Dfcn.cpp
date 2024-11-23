@@ -77,7 +77,7 @@ void WS2812FX::setUpMatrix() {
       if ((size > 0) && (customMappingTable == nullptr)) { // second try
         DEBUG_PRINTLN("setUpMatrix: trying to get fresh memory block.");
         #ifdef ESP32
-        customMappingTable = (uint16_t*) heap_caps_calloc_prefer(size, sizeof(uint16_t),2,MALLOC_CAP_SPIRAM,MALLOC_CAP_INTERNAL);
+        customMappingTable = (uint16_t*) heap_caps_calloc_prefer(size, sizeof(uint16_t),2,MALLOC_CAP_SPIRAM,MALLOC_CAP_DEFAULT);
         #else
         customMappingTable = (uint16_t*) calloc(size, sizeof(uint16_t));
         #endif

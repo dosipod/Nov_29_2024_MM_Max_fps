@@ -776,7 +776,7 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
   // For some reason, this is faster outside of the case block...
   //
   #ifdef ESP32
-  static byte *packet_buffer = (byte *) heap_caps_calloc_prefer(530, sizeof(byte), 2, MALLOC_CAP_DEFAULT, MALLOC_CAP_SPIRAM);
+  static byte *packet_buffer = (byte *) heap_caps_calloc_prefer(530, sizeof(byte), 2, MALLOC_CAP_INTERNAL, MALLOC_CAP_SPIRAM);
   #else
   static byte *packet_buffer = (byte *) calloc(530, sizeof(byte));
   #endif
