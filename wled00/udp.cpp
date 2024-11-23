@@ -902,7 +902,7 @@ uint8_t IRAM_ATTR_YN realtimeBroadcast(uint8_t type, IPAddress client, uint16_t 
         buffer = buffer_in;
       }
       #else
-      buffer = buffer_in;
+      static byte* buffer = buffer_in;
       #endif
 
       AsyncUDP artnetudp;// AsyncUDP so we can just blast packets.
