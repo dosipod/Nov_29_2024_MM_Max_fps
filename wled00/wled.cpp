@@ -1401,7 +1401,7 @@ void WLED::handleConnection()
       initAP();
     }
   } else if (!interfacesInited) { //newly connected
-    USER_PRINT(F("Connected! IP address: "));
+    USER_PRINT(F("Connected! IP address: http://"));
     if (Network.isEthernet()) {
       #if ESP32
       USER_PRINT(ETH.localIP());
