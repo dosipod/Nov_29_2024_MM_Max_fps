@@ -1266,7 +1266,9 @@ void WLED::initInterfaces()
   ddp.begin(false, DDP_DEFAULT_PORT);
   #endif
 
+  #ifndef WLED_DISABLE_HUESYNC
   reconnectHue();
+  #endif
 #ifndef WLED_DISABLE_MQTT
   initMqtt();
 #endif
