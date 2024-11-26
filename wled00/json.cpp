@@ -1075,6 +1075,7 @@ void serializeInfo(JsonObject root)
     root[F("freestack")] = uxTaskGetStackHighWaterMark(NULL); //WLEDMM
     root[F("minfreeheap")] = ESP.getMinFreeHeap();
   #endif
+  #ifdef ESP32
   if (psramFound()) {
     root[F("tpram")] = ESP.getPsramSize(); //WLEDMM
     root[F("psram")] = ESP.getFreePsram();
@@ -1087,6 +1088,7 @@ void serializeInfo(JsonObject root)
     #endif
     #endif
   }
+  #endif
   // for testing
   //  root[F("tpram")] = 4194304; //WLEDMM
   //  root[F("psram")] = 4193000;

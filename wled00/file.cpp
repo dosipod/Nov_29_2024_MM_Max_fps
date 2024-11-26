@@ -507,6 +507,7 @@ bool handleFileRead(AsyncWebServerRequest* request, String path){
     return true;
   }*/
 
+  #ifdef ESP32
   if (psramFound()) {
     if (path.endsWith("/presets.json")) {
       size_t psize;
@@ -518,6 +519,7 @@ bool handleFileRead(AsyncWebServerRequest* request, String path){
       }
     }
   }
+  #endif
 
   if(WLED_FS.exists(path) || WLED_FS.exists(path + ".gz")) {
       request->send(WLED_FS, path, String(), request->hasArg(F("download")));

@@ -617,12 +617,14 @@ void WLED::setup()
   managed_pin_type pins[] = { {16, true}, {17, true} };
   pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), PinOwner::SPI_RAM);
   #endif
+  #ifdef ESP32
   if (psramFound() && ESP.getPsramSize() > 0) {
     DEBUG_PRINT(F("Total PSRAM: ")); DEBUG_PRINT(ESP.getPsramSize()/1024); DEBUG_PRINTLN("kB");
     DEBUG_PRINT(F("Free PSRAM : ")); DEBUG_PRINT(ESP.getFreePsram()/1024); DEBUG_PRINTLN("kB");
   } else {
     DEBUG_PRINTLN(F("PSRAM not used."));
   }
+  #endif
 
 #if defined(ARDUINO_ARCH_ESP32)
   if (strncmp("ESP32-PICO", ESP.getChipModel(), 10) == 0) { // WLEDMM detect pico board at runtime
@@ -641,7 +643,7 @@ void WLED::setup()
 #ifdef WLED_ENABLE_DMX //reserve GPIO2 as hardcoded DMX pin
   pinManager.allocatePin(2, true, PinOwner::DMX);
 #endif
-
+  #ifdef ESP32
   if (psramFound()) {
     DEBUG_PRINT(F("\nfree heap ")); DEBUG_PRINTLN(ESP.getFreeHeap());
     USER_PRINTLN(F("JSON gabage collection (initial)."));
@@ -649,6 +651,7 @@ void WLED::setup()
 	  USER_PRINT(F("PSRAM in use:")); USER_PRINT(int(ESP.getPsramSize() - ESP.getFreePsram())); USER_PRINTLN(F(" Bytes."));
     DEBUG_PRINT(F("free heap ")); DEBUG_PRINTLN(ESP.getFreeHeap());
   }
+  #endif
 
 // WLEDMM experimental: support for single neoPixel on Adafruit boards
 #if 0
