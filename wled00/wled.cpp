@@ -598,8 +598,7 @@ void WLED::setup()
 
   #if defined(CONFIG_IDF_TARGET_ESP32S3)
     #if CONFIG_ESPTOOLPY_FLASHMODE_OPI || CONFIG_SPIRAM_MODE_OCT
-      DEBUG_PRINTF("**** PSRAM WAS %s *****",psramFound()?"Found!":"NOT FOUND!"); // TroyHacks: Figure out why it's finding PSRAM when there isn't any. FIXME
-      if (psramFound()) {
+      if (psramFound() && ESP.getPsramSize() > 0) {
         // S3: reserve GPIO 33-37 for "octal" PSRAM
         managed_pin_type pins[] = { {33, true}, {34, true}, {35, true}, {36, true}, {37, true} };
         pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), PinOwner::SPI_RAM);
@@ -618,7 +617,7 @@ void WLED::setup()
   managed_pin_type pins[] = { {16, true}, {17, true} };
   pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), PinOwner::SPI_RAM);
   #endif
-  if (psramFound()) {
+  if (psramFound() && ESP.getPsramSize() > 0) {
     DEBUG_PRINT(F("Total PSRAM: ")); DEBUG_PRINT(ESP.getPsramSize()/1024); DEBUG_PRINTLN("kB");
     DEBUG_PRINT(F("Free PSRAM : ")); DEBUG_PRINT(ESP.getFreePsram()/1024); DEBUG_PRINTLN("kB");
   } else {
