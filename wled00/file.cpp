@@ -415,6 +415,7 @@ static String getContentType(AsyncWebServerRequest* request, String filename){
 // original idea by @akaricchi (https://github.com/Akaricchi)
 // returns a pointer to the PSRAM buffer, updates size parameter
 static const uint8_t *getPresetCache(size_t &size) {
+  #ifdef ESP32
   if (!psramFound()) {
     size = 0;
     return nullptr;
@@ -456,6 +457,9 @@ static const uint8_t *getPresetCache(size_t &size) {
 
   size = presetsCachedSize;
   return presetsCached;
+  #else
+  return nullptr;
+  #endif
 }
 
 // WLEDMM
