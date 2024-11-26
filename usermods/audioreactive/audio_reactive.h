@@ -13,7 +13,10 @@
 #include "wled.h"
 #ifdef UM_AUDIOREACTIVE_USE_ESPDSP_FFT
   #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
-    #include "esp_dsp.h"
+    // #include "esp_dsp.h"
+    #include "dsps_biquad.h"
+    #include "dsps_fft4r.h"
+    #include "dsps_wind_blackman_harris.h"
   #endif
 #endif
 #ifdef ARDUINO_ARCH_ESP32
