@@ -474,7 +474,6 @@ void my_verbose_print_reset_reason(int reason)
 
 void show_psram_info_part1(void)
 {
-#if defined(BOARD_HAS_PSRAM)
   //if (esp_spiram_is_initialized() == false) esp_spiram_init();
   Serial.println(psramFound() ? "ESP32 PSRAM: found.": "ESP32 PSRAM: not found!"); 
   if (!psramFound()) return;
@@ -495,12 +494,10 @@ void show_psram_info_part1(void)
     }
   #endif
   #endif
-#endif
 }
 
 void show_psram_info_part2(void)
 {
-#if defined(BOARD_HAS_PSRAM)
   if (!psramFound()) return;
 
   // usually the next part won't work ...
@@ -518,27 +515,6 @@ void show_psram_info_part2(void)
       case PSRAM_CACHE_F80M_S80M: Serial.println("*  PSRAM speed = PSRAM_CACHE_F80M_S80M  -> speed=80 esptool_flash=80 (by config)"); break;
     }
   #endif
-
-  #if 0  // this test makes the "max used PSRAM" info unusable
-  // try to allocate PSRAM (one 640KB chunk so we can be sure it will not fit into DRAM)
-  void * buff2 = ps_malloc(640 * 1024);
-  uint8_t * buf = (uint8_t*)malloc(620 * 1024);
-  Serial.print("* PSRAM free after malloc / ps_malloc : "); Serial.print(ESP.getFreePsram() / 1024.0, 2); Serial.println(" KB (1.2MB allocated)");
-  if (buff2 == NULL)
-    Serial.println("* can't allocate big memory with ps_malloc()");
-  else { 
-    Serial.println("* Can allocate big memory with ps_malloc()");
-    free(buff2);
-  }
-  if (buf == NULL)
-    Serial.println("* can't allocate big memory with malloc()");
-  else { 
-    free(buf);
-    Serial.println("* Can allocate big memory with malloc()");
-  }
-  #endif
-
-#endif
 }
 
 void showRealSpeed() {
@@ -582,10 +558,10 @@ void showRealSpeed() {
   Serial.print(  " FREE RAM:      "); Serial.print(ESP.getFreeHeap() / 1024.0, 2); Serial.println(" KB");
   Serial.print(  " MAX RAM alloc: "); Serial.print(ESP.getMaxAllocHeap() / 1024.0, 2); Serial.println(" KB");
 
-#if defined(BOARD_HAS_PSRAM)
   Serial.println();
-  show_psram_info_part1();
+  
   if (psramFound()) {
+    show_psram_info_part1();
     Serial.print("  total PSRAM:    "); Serial.print(ESP.getPsramSize() / 1024.0, 0); Serial.println(" KB");
     Serial.print("  FREE PSRAM:     "); Serial.print(ESP.getFreePsram() / 1024.0, 2); Serial.println(" KB");
     Serial.print("  MAX PSRAM alloc:"); Serial.print(ESP.getMaxAllocPsram() / 1024.0, 2); Serial.println(" KB");
@@ -594,7 +570,6 @@ void showRealSpeed() {
     show_psram_info_part2();
   }
   Serial.flush();
-#endif
 
 #if 0  // duplicate - this info is also printed by getCoreResetReason()
   Serial.println();

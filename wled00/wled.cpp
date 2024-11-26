@@ -344,17 +344,14 @@ void WLED::loop()
     DEBUG_PRINT(F("Avail heap: "));     DEBUG_PRINTLN(ESP.getMaxAllocHeap());
     DEBUG_PRINTF("%s min free stack %d\n", pcTaskGetTaskName(NULL), uxTaskGetStackHighWaterMark(NULL)); //WLEDMM
 	#endif
-    #if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM)
     if (psramFound()) {
       //DEBUG_PRINT(F("Total PSRAM: "));    DEBUG_PRINT(ESP.getPsramSize()/1024); DEBUG_PRINTLN("kB");
       DEBUG_PRINT(F("Free PSRAM : "));     DEBUG_PRINT(ESP.getFreePsram()/1024); DEBUG_PRINTLN("kB");
       DEBUG_PRINT(F("Avail PSRAM: "));     DEBUG_PRINT(ESP.getMaxAllocPsram()/1024); DEBUG_PRINTLN("kB");
       DEBUG_PRINT(F("PSRAM in use:")); DEBUG_PRINT(int(ESP.getPsramSize() - ESP.getFreePsram())); DEBUG_PRINTLN(F(" Bytes"));
-
     } else {
-      //DEBUG_PRINTLN(F("No PSRAM"));
-	}
-    #endif
+      DEBUG_PRINTLN(F("No PSRAM"));
+	  }
     DEBUG_PRINT(F("Wifi state: "));      DEBUG_PRINTLN(WiFi.status());
 
     if (WiFi.status() != lastWifiState) {
@@ -599,13 +596,14 @@ void WLED::setup()
   DEBUG_PRINTF("%s min free stack %d\n", pcTaskGetTaskName(NULL), uxTaskGetStackHighWaterMark(NULL)); //WLEDMM
 #endif
 
-#if defined(ARDUINO_ARCH_ESP32) && (defined(BOARD_HAS_PSRAM) || defined(CONFIG_ESPTOOLPY_FLASHMODE_OPI))
-  //psramInit(); //WLEDMM?? softhack007: not sure if explicit init is really needed ... lets disable it here and see if that works
   #if defined(CONFIG_IDF_TARGET_ESP32S3)
-    #if CONFIG_ESPTOOLPY_FLASHMODE_OPI || (CONFIG_SPIRAM_MODE_OCT && defined(BOARD_HAS_PSRAM))
-      // S3: reserve GPIO 33-37 for "octal" PSRAM
-      managed_pin_type pins[] = { {33, true}, {34, true}, {35, true}, {36, true}, {37, true} };
-      pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), PinOwner::SPI_RAM);
+    #if CONFIG_ESPTOOLPY_FLASHMODE_OPI || CONFIG_SPIRAM_MODE_OCT
+      DEBUG_PRINTF("**** PSRAM WAS %s *****",psramFound()?"Found!":"NOT FOUND!"); // TroyHacks: Figure out why it's finding PSRAM when there isn't any. FIXME
+      if (psramFound()) {
+        // S3: reserve GPIO 33-37 for "octal" PSRAM
+        managed_pin_type pins[] = { {33, true}, {34, true}, {35, true}, {36, true}, {37, true} };
+        pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), PinOwner::SPI_RAM);
+      }
     #endif
   #elif defined(CONFIG_IDF_TARGET_ESP32S2)
   // S2: reserve GPIO 26-32 for PSRAM (may fail due to isPinOk() but that will also prevent other allocation)
@@ -620,15 +618,13 @@ void WLED::setup()
   managed_pin_type pins[] = { {16, true}, {17, true} };
   pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), PinOwner::SPI_RAM);
   #endif
-  #if defined(BOARD_HAS_PSRAM)
   if (psramFound()) {
     DEBUG_PRINT(F("Total PSRAM: ")); DEBUG_PRINT(ESP.getPsramSize()/1024); DEBUG_PRINTLN("kB");
     DEBUG_PRINT(F("Free PSRAM : ")); DEBUG_PRINT(ESP.getFreePsram()/1024); DEBUG_PRINTLN("kB");
-  }
-  #else
+  } else {
     DEBUG_PRINTLN(F("PSRAM not used."));
-  #endif
-#endif
+  }
+
 #if defined(ARDUINO_ARCH_ESP32)
   if (strncmp("ESP32-PICO", ESP.getChipModel(), 10) == 0) { // WLEDMM detect pico board at runtime
     // special handling for PICO-D4: gpio16+17 are in use for onboard SPI FLASH (not PSRAM)
@@ -647,7 +643,6 @@ void WLED::setup()
   pinManager.allocatePin(2, true, PinOwner::DMX);
 #endif
 
-#if defined(BOARD_HAS_PSRAM)
   if (psramFound()) {
     DEBUG_PRINT(F("\nfree heap ")); DEBUG_PRINTLN(ESP.getFreeHeap());
     USER_PRINTLN(F("JSON gabage collection (initial)."));
@@ -655,7 +650,6 @@ void WLED::setup()
 	  USER_PRINT(F("PSRAM in use:")); USER_PRINT(int(ESP.getPsramSize() - ESP.getFreePsram())); USER_PRINTLN(F(" Bytes."));
     DEBUG_PRINT(F("free heap ")); DEBUG_PRINTLN(ESP.getFreeHeap());
   }
-#endif
 
 // WLEDMM experimental: support for single neoPixel on Adafruit boards
 #if 0

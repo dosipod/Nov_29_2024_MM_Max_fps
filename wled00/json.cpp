@@ -1075,7 +1075,6 @@ void serializeInfo(JsonObject root)
     root[F("freestack")] = uxTaskGetStackHighWaterMark(NULL); //WLEDMM
     root[F("minfreeheap")] = ESP.getMinFreeHeap();
   #endif
-  #if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM)
   if (psramFound()) {
     root[F("tpram")] = ESP.getPsramSize(); //WLEDMM
     root[F("psram")] = ESP.getFreePsram();
@@ -1088,12 +1087,10 @@ void serializeInfo(JsonObject root)
     #endif
     #endif
   }
-  #else
   // for testing
   //  root[F("tpram")] = 4194304; //WLEDMM
   //  root[F("psram")] = 4193000;
   //  root[F("psusedram")] = 3083000;
-  #endif
 
   // begin WLEDMM
   #ifdef ARDUINO_ARCH_ESP32

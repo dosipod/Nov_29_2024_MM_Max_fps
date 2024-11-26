@@ -816,21 +816,17 @@ WLED_GLOBAL int8_t spi_sclk  _INIT(HW_PIN_CLOCKSPI);
 #endif
 
 // global ArduinoJson buffer
-#if defined(BOARD_HAS_PSRAM)
 // WLEDMM experimental : always use dynamic JSON
-  #ifndef WLED_DEFINE_GLOBAL_VARS
-  WLED_GLOBAL PSRAMDynamicJsonDocument doc;
-  #else
-  #if defined(CONFIG_IDF_TARGET_ESP32) || defined(CONFIG_IDF_TARGET_ESP32S2) 
-    WLED_GLOBAL PSRAMDynamicJsonDocument doc(JSON_BUFFER_SIZE);       // S2 has very small RAM - lets not push our luck too far
-  #else
-    WLED_GLOBAL PSRAMDynamicJsonDocument doc(JSON_BUFFER_SIZE * 2 );  // initially "doc" is allocated in RAM, and later pushed into PSRAM when the drivers is ready
-  #endif
-  //#warning trying to always use dynamic JSON in PSRAM
-  #endif
+#ifndef WLED_DEFINE_GLOBAL_VARS
+WLED_GLOBAL PSRAMDynamicJsonDocument doc;
 #else
-WLED_GLOBAL StaticJsonDocument<JSON_BUFFER_SIZE> doc;
-#endif // WLEDMM end
+#if defined(CONFIG_IDF_TARGET_ESP32) || defined(CONFIG_IDF_TARGET_ESP32S2) 
+  WLED_GLOBAL PSRAMDynamicJsonDocument doc(JSON_BUFFER_SIZE);       // S2 has very small RAM - lets not push our luck too far
+#else
+  WLED_GLOBAL PSRAMDynamicJsonDocument doc(JSON_BUFFER_SIZE * 2 );  // initially "doc" is allocated in RAM, and later pushed into PSRAM when the drivers is ready
+#endif
+//#warning trying to always use dynamic JSON in PSRAM
+#endif
 WLED_GLOBAL volatile uint8_t jsonBufferLock _INIT(0);
 
 // enable additional debug output

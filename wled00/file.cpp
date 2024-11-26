@@ -411,20 +411,19 @@ static String getContentType(AsyncWebServerRequest* request, String filename){
   return "text/plain";
 }
 
-#if defined(BOARD_HAS_PSRAM)
 // caching presets in PSRAM may prevent occasional flashes seen when HomeAssistant polls WLED
 // original idea by @akaricchi (https://github.com/Akaricchi)
 // returns a pointer to the PSRAM buffer, updates size parameter
 static const uint8_t *getPresetCache(size_t &size) {
-  static unsigned long presetsCachedTime = 0;
-  static uint8_t *presetsCached = nullptr;
-  static size_t presetsCachedSize = 0;
-  static byte presetsCachedValidate = 0;
-
   if (!psramFound()) {
     size = 0;
     return nullptr;
   }
+
+  static unsigned long presetsCachedTime = 0;
+  static uint8_t *presetsCached = nullptr;
+  static size_t presetsCachedSize = 0;
+  static byte presetsCachedValidate = 0;
 
   //if (presetsModifiedTime != presetsCachedTime) DEBUG_PRINTLN(F("getPresetCache(): presetsModifiedTime changed."));
   //if (presetsCachedValidate != cacheInvalidate) DEBUG_PRINTLN(F("getPresetCache(): cacheInvalidate changed."));
@@ -458,7 +457,6 @@ static const uint8_t *getPresetCache(size_t &size) {
   size = presetsCachedSize;
   return presetsCached;
 }
-#endif
 
 // WLEDMM
 static bool haveLedmapFile = true;
@@ -473,14 +471,14 @@ void invalidateFileNameCache() { // reset "file not found" cache
   haveICOFile = true;
   haveCpalFile = true;
 
-  #if defined(BOARD_HAS_PSRAM)
-  // WLEDMM hack to clear presets.json cache
-  size_t dummy;
-  unsigned long realpresetsTime = presetsModifiedTime;
-  presetsModifiedTime = toki.second();   // pretend we have changes
-  (void) getPresetCache(dummy);          // clear presets.json cache
-  presetsModifiedTime = realpresetsTime; // restore correct value
-#endif
+  if (psramFound()) {
+    // WLEDMM hack to clear presets.json cache
+    size_t dummy;
+    unsigned long realpresetsTime = presetsModifiedTime;
+    presetsModifiedTime = toki.second();   // pretend we have changes
+    (void) getPresetCache(dummy);          // clear presets.json cache
+    presetsModifiedTime = realpresetsTime; // restore correct value
+  }
   //USER_PRINTLN("WS FileRead cache cleared");
 }
 
@@ -504,17 +502,17 @@ bool handleFileRead(AsyncWebServerRequest* request, String path){
     return true;
   }*/
 
-  #if defined(BOARD_HAS_PSRAM)
-  if (path.endsWith("/presets.json")) {
-    size_t psize;
-    const uint8_t *presets = getPresetCache(psize);
-    if (presets) {
-      AsyncWebServerResponse *response = request->beginResponse_P(200, contentType, presets, psize);
-      request->send(response);
-      return true;
+  if (psramFound()) {
+    if (path.endsWith("/presets.json")) {
+      size_t psize;
+      const uint8_t *presets = getPresetCache(psize);
+      if (presets) {
+        AsyncWebServerResponse *response = request->beginResponse_P(200, contentType, presets, psize);
+        request->send(response);
+        return true;
+      }
     }
   }
-  #endif
 
   if(WLED_FS.exists(path) || WLED_FS.exists(path + ".gz")) {
       request->send(WLED_FS, path, String(), request->hasArg(F("download")));
