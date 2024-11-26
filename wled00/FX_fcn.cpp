@@ -231,6 +231,7 @@ bool Segment::allocateData(size_t len) {
   //DEBUG_PRINTF("allocateData(%u) start %d, stop %d, vlen %d\n", len, start, stop, virtualLength());
   deallocateData();
   if (len == 0) return false; // nothing to do
+  #if ESP32
   if (!psramFound()) {
     if (Segment::getUsedSegmentData() + len > MAX_SEGMENT_DATA) {
       //USER_PRINTF("Segment::allocateData: Segment data quota exceeded! used:%u request:%u max:%d\n", Segment::getUsedSegmentData(), len, MAX_SEGMENT_DATA);
@@ -238,6 +239,13 @@ bool Segment::allocateData(size_t len) {
       return false; //not enough memory
     }
   }
+  #else 
+  if (Segment::getUsedSegmentData() + len > MAX_SEGMENT_DATA) {
+    //USER_PRINTF("Segment::allocateData: Segment data quota exceeded! used:%u request:%u max:%d\n", Segment::getUsedSegmentData(), len, MAX_SEGMENT_DATA);
+    if (len > 0) errorFlag = ERR_LOW_SEG_MEM;  // WLEDMM raise errorflag
+    return false; //not enough memory
+  }
+  #endif
   #ifdef ESP32
   data = (byte*) heap_caps_calloc_prefer(len, 1, 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
   #else
