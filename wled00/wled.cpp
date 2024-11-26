@@ -452,6 +452,7 @@ void WLED::setup()
   delay(WLED_BOOTUPDELAY); // delay to let voltage stabilize, helps with boot issues on some setups
   #endif
   Serial.begin(115200);
+  #ifndef WLED_NO_SERIAL_WAIT
   if (!Serial) delay(1000); // WLEDMM make sure that Serial has initalized
 
   #ifdef ARDUINO_ARCH_ESP32
@@ -468,7 +469,7 @@ void WLED::setup()
   if (!Serial) delay(2500);
   if (Serial) Serial.println("wait 2");
   if (!Serial) delay(2500);
-
+  #endif
   if (Serial) Serial.flush(); // WLEDMM
   //Serial.setTimeout(350); // WLEDMM: don't change timeout, as it causes crashes later
   // WLEDMM: redirect debug output to HWCDC
