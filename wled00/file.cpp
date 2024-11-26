@@ -474,7 +474,7 @@ void invalidateFileNameCache() { // reset "file not found" cache
   haveSkinFile = true;
   haveICOFile = true;
   haveCpalFile = true;
-
+  #ifdef ESP32
   if (psramFound()) {
     // WLEDMM hack to clear presets.json cache
     size_t dummy;
@@ -483,6 +483,7 @@ void invalidateFileNameCache() { // reset "file not found" cache
     (void) getPresetCache(dummy);          // clear presets.json cache
     presetsModifiedTime = realpresetsTime; // restore correct value
   }
+  #endif
   //USER_PRINTLN("WS FileRead cache cleared");
 }
 
