@@ -344,17 +344,14 @@ void WLED::loop()
     DEBUG_PRINT(F("Avail heap: "));     DEBUG_PRINTLN(ESP.getMaxAllocHeap());
     DEBUG_PRINTF("%s min free stack %d\n", pcTaskGetTaskName(NULL), uxTaskGetStackHighWaterMark(NULL)); //WLEDMM
 	#endif
-    #if defined(ARDUINO_ARCH_ESP32) && defined(BOARD_HAS_PSRAM)
     if (psramFound()) {
       //DEBUG_PRINT(F("Total PSRAM: "));    DEBUG_PRINT(ESP.getPsramSize()/1024); DEBUG_PRINTLN("kB");
       DEBUG_PRINT(F("Free PSRAM : "));     DEBUG_PRINT(ESP.getFreePsram()/1024); DEBUG_PRINTLN("kB");
       DEBUG_PRINT(F("Avail PSRAM: "));     DEBUG_PRINT(ESP.getMaxAllocPsram()/1024); DEBUG_PRINTLN("kB");
       DEBUG_PRINT(F("PSRAM in use:")); DEBUG_PRINT(int(ESP.getPsramSize() - ESP.getFreePsram())); DEBUG_PRINTLN(F(" Bytes"));
-
     } else {
-      //DEBUG_PRINTLN(F("No PSRAM"));
-	}
-    #endif
+      DEBUG_PRINTLN(F("No PSRAM"));
+	  }
     DEBUG_PRINT(F("Wifi state: "));      DEBUG_PRINTLN(WiFi.status());
 
     if (WiFi.status() != lastWifiState) {
@@ -452,6 +449,7 @@ void WLED::setup()
   delay(WLED_BOOTUPDELAY); // delay to let voltage stabilize, helps with boot issues on some setups
   #endif
   Serial.begin(115200);
+  #ifndef WLED_NO_SERIAL_WAIT
   if (!Serial) delay(1000); // WLEDMM make sure that Serial has initalized
 
   #ifdef ARDUINO_ARCH_ESP32
@@ -468,7 +466,7 @@ void WLED::setup()
   if (!Serial) delay(2500);
   if (Serial) Serial.println("wait 2");
   if (!Serial) delay(2500);
-
+  #endif
   if (Serial) Serial.flush(); // WLEDMM
   //Serial.setTimeout(350); // WLEDMM: don't change timeout, as it causes crashes later
   // WLEDMM: redirect debug output to HWCDC
@@ -538,7 +536,7 @@ void WLED::setup()
   // WLEDMM end
 
   USER_PRINT(F("FLASH: ")); USER_PRINT((ESP.getFlashChipSize()/1024)/1024);
-  USER_PRINT(F("MB, Mode ")); USER_PRINT(ESP.getFlashChipMode());
+  // USER_PRINT(F("MB, Mode ")); USER_PRINT(ESP.getFlashChipMode());
   #ifdef WLED_DEBUG
   switch (ESP.getFlashChipMode()) {
     // missing: Octal modes
@@ -558,7 +556,7 @@ void WLED::setup()
   USER_PRINT(F(", speed ")); USER_PRINT(ESP.getFlashChipSpeed()/1000000);USER_PRINTLN(F("MHz."));
   
   #if defined(WLED_DEBUG) && defined(ARDUINO_ARCH_ESP32)
-  showRealSpeed();
+  // showRealSpeed();
   #endif
 
 #else
@@ -571,16 +569,16 @@ void WLED::setup()
   USER_PRINTLN(ESP.getResetInfo());
 
   USER_PRINT(F("FLASH: ")); USER_PRINT((ESP.getFlashChipRealSize()/1024)/1024);
-  USER_PRINT(F("MB, Mode ")); USER_PRINT((int)ESP.getFlashChipMode());
+  // USER_PRINT(F("MB, Mode ")); USER_PRINT((int)ESP.getFlashChipMode());
   #ifdef WLED_DEBUG
-  switch (ESP.getFlashChipMode()) {
-    // missing: Octal modes
-    case FM_QIO:  DEBUG_PRINT(F(" (QIO)")); break;
-    case FM_QOUT: DEBUG_PRINT(F(" (QOUT)"));break;
-    case FM_DIO:  DEBUG_PRINT(F(" (DIO)")); break;
-    case FM_DOUT: DEBUG_PRINT(F(" (DOUT)"));break;
-    default: break;
-  }
+  // switch (ESP.getFlashChipMode()) {
+  //   // missing: Octal modes
+  //   case FM_QIO:  DEBUG_PRINT(F(" (QIO)")); break;
+  //   case FM_QOUT: DEBUG_PRINT(F(" (QOUT)"));break;
+  //   case FM_DIO:  DEBUG_PRINT(F(" (DIO)")); break;
+  //   case FM_DOUT: DEBUG_PRINT(F(" (DOUT)"));break;
+  //   default: break;
+  // }
   #endif
   USER_PRINT(F(", speed ")); USER_PRINT(ESP.getFlashChipSpeed()/1000000);USER_PRINT(F("MHz; "));
   USER_PRINT(F(" chip ID = 0x"));
@@ -598,13 +596,13 @@ void WLED::setup()
   DEBUG_PRINTF("%s min free stack %d\n", pcTaskGetTaskName(NULL), uxTaskGetStackHighWaterMark(NULL)); //WLEDMM
 #endif
 
-#if defined(ARDUINO_ARCH_ESP32) && (defined(BOARD_HAS_PSRAM) || defined(CONFIG_ESPTOOLPY_FLASHMODE_OPI))
-  //psramInit(); //WLEDMM?? softhack007: not sure if explicit init is really needed ... lets disable it here and see if that works
   #if defined(CONFIG_IDF_TARGET_ESP32S3)
-    #if CONFIG_ESPTOOLPY_FLASHMODE_OPI || (CONFIG_SPIRAM_MODE_OCT && defined(BOARD_HAS_PSRAM))
-      // S3: reserve GPIO 33-37 for "octal" PSRAM
-      managed_pin_type pins[] = { {33, true}, {34, true}, {35, true}, {36, true}, {37, true} };
-      pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), PinOwner::SPI_RAM);
+    #if CONFIG_ESPTOOLPY_FLASHMODE_OPI || CONFIG_SPIRAM_MODE_OCT
+      if (psramFound() && ESP.getPsramSize() > 0) {
+        // S3: reserve GPIO 33-37 for "octal" PSRAM
+        managed_pin_type pins[] = { {33, true}, {34, true}, {35, true}, {36, true}, {37, true} };
+        pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), PinOwner::SPI_RAM);
+      }
     #endif
   #elif defined(CONFIG_IDF_TARGET_ESP32S2)
   // S2: reserve GPIO 26-32 for PSRAM (may fail due to isPinOk() but that will also prevent other allocation)
@@ -619,15 +617,15 @@ void WLED::setup()
   managed_pin_type pins[] = { {16, true}, {17, true} };
   pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), PinOwner::SPI_RAM);
   #endif
-  #if defined(BOARD_HAS_PSRAM) && (defined(WLED_USE_PSRAM) || defined(WLED_USE_PSRAM_JSON))       // WLEDMM
-  if (psramFound()) {
+  #ifdef ESP32
+  if (psramFound() && ESP.getPsramSize() > 0) {
     DEBUG_PRINT(F("Total PSRAM: ")); DEBUG_PRINT(ESP.getPsramSize()/1024); DEBUG_PRINTLN("kB");
     DEBUG_PRINT(F("Free PSRAM : ")); DEBUG_PRINT(ESP.getFreePsram()/1024); DEBUG_PRINTLN("kB");
-  }
-  #else
+  } else {
     DEBUG_PRINTLN(F("PSRAM not used."));
+  }
   #endif
-#endif
+
 #if defined(ARDUINO_ARCH_ESP32)
   if (strncmp("ESP32-PICO", ESP.getChipModel(), 10) == 0) { // WLEDMM detect pico board at runtime
     // special handling for PICO-D4: gpio16+17 are in use for onboard SPI FLASH (not PSRAM)
@@ -645,8 +643,7 @@ void WLED::setup()
 #ifdef WLED_ENABLE_DMX //reserve GPIO2 as hardcoded DMX pin
   pinManager.allocatePin(2, true, PinOwner::DMX);
 #endif
-
-#if defined(ALL_JSON_TO_PSRAM) && defined(BOARD_HAS_PSRAM) && (defined(WLED_USE_PSRAM_JSON) || defined(WLED_USE_PSRAM))
+  #ifdef ESP32
   if (psramFound()) {
     DEBUG_PRINT(F("\nfree heap ")); DEBUG_PRINTLN(ESP.getFreeHeap());
     USER_PRINTLN(F("JSON gabage collection (initial)."));
@@ -654,7 +651,7 @@ void WLED::setup()
 	  USER_PRINT(F("PSRAM in use:")); USER_PRINT(int(ESP.getPsramSize() - ESP.getFreePsram())); USER_PRINTLN(F(" Bytes."));
     DEBUG_PRINT(F("free heap ")); DEBUG_PRINTLN(ESP.getFreeHeap());
   }
-#endif
+  #endif
 
 // WLEDMM experimental: support for single neoPixel on Adafruit boards
 #if 0
@@ -946,8 +943,11 @@ void WLED::initAP(bool resetAP)
     if (udpPort2 > 0 && udpPort2 != ntpLocalPort && udpPort2 != udpPort && udpPort2 != udpRgbPort) {
       udp2Connected = notifier2Udp.begin(udpPort2);
     }
+    
+    #if E131_MAX_UNIVERSE_COUNT > 0
     e131.begin(false, e131Port, e131Universe, E131_MAX_UNIVERSE_COUNT);
     ddp.begin(false, DDP_DEFAULT_PORT);
+    #endif
 
     dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
     dnsServer.start(53, "*", WiFi.softAPIP());
@@ -955,14 +955,14 @@ void WLED::initAP(bool resetAP)
   apActive = true;
 }
 
+static bool successfullyConfiguredEthernet = false;
+
 bool WLED::initEthernet()
 {
 #if defined(ARDUINO_ARCH_ESP32) && defined(WLED_USE_ETHERNET)
 
-  static bool successfullyConfiguredEthernet = false;
-
   if (successfullyConfiguredEthernet) {
-    // DEBUG_PRINTLN(F("initE: ETH already successfully configured, ignoring"));
+    DEBUG_PRINTLN(F("initE: ETH already successfully configured, ignoring"));
     return false;
   }
   if (ethernetType == WLED_ETH_NONE) {
@@ -975,6 +975,7 @@ bool WLED::initEthernet()
 
   DEBUG_PRINT(F("initE: Attempting ETH config: ")); DEBUG_PRINTLN(ethernetType);
 
+  #ifndef ARDUINO_ARCH_ESP32S3
   // Ethernet initialization should only succeed once -- else reboot required
   ethernet_settings es = ethernetBoards[ethernetType];
   managed_pin_type pinsToAllocate[10] = {
@@ -1048,6 +1049,45 @@ bool WLED::initEthernet()
     }
     return false;
   }
+
+  #elif defined (ARDUINO_ARCH_ESP32S3)
+
+  #define ETH_MISO_PIN                    11
+  #define ETH_MOSI_PIN                    12
+  #define ETH_SCLK_PIN                    10
+  #define ETH_CS_PIN                      9
+  #define ETH_INT_PIN                     13
+  #define ETH_RST_PIN                     14
+  #define ETH_ADDR                        1
+
+  // 7,6,5,4 and 41,42
+  // #define ETH_MISO_PIN                    41
+  // #define ETH_MOSI_PIN                    4
+  // #define ETH_SCLK_PIN                    5
+  // #define ETH_CS_PIN                      6
+  // #define ETH_INT_PIN                     7
+  // #define ETH_RST_PIN                     42
+  // #define ETH_ADDR                        1
+
+  managed_pin_type pinsToAllocate[12] = { ETH_MISO_PIN,true,ETH_MOSI_PIN,true,ETH_SCLK_PIN,true,ETH_CS_PIN,true,ETH_INT_PIN,true,ETH_RST_PIN,true };
+
+  if (!pinManager.allocateMultiplePins(pinsToAllocate, 6, PinOwner::Ethernet)) {
+    DEBUG_PRINTLN(F("initE: Failed to allocate ethernet pins"));
+    return false;
+  }
+
+  if (!ETH.begin(ETH_PHY_W5500, ETH_ADDR, ETH_CS_PIN, ETH_INT_PIN, ETH_RST_PIN, SPI3_HOST, ETH_SCLK_PIN, ETH_MISO_PIN, ETH_MOSI_PIN)) {
+    DEBUG_PRINTLN(F("initC: ETH.begin() [SPI Ethernet] failed"));
+    // de-allocate the allocated pins
+    for (managed_pin_type mpt : pinsToAllocate) {
+      pinManager.deallocatePin(mpt.pin, PinOwner::Ethernet);
+    }
+    return false;
+  } else {
+    Serial.println("ETH initialized W5500!");
+  }
+
+  #endif
 
   successfullyConfiguredEthernet = true;
   USER_PRINTLN(F("initC: *** Ethernet successfully configured! ***"));  // WLEDMM
@@ -1151,7 +1191,7 @@ void WLED::initInterfaces()
         WiFi.hostByName(WLED_DEBUG_HOST, netDebugPrintIP, 750);
       #else
         #ifdef WLED_USE_ETHERNET
-          // ETH.hostByName(WLED_DEBUG_HOST, netDebugPrintIP); WLEDMM: ETH.hostByName does not exist, WiFi.hostByName seems to do the same, but must be tested.
+          // ETH.hostByName(WLED_DEBUG_HOST, netDebugPrintIP); // WLEDMM: ETH.hostByName does not exist, WiFi.hostByName seems to do the same, but must be tested.
           WiFi.hostByName(WLED_DEBUG_HOST, netDebugPrintIP);
         #else
           WiFi.hostByName(WLED_DEBUG_HOST, netDebugPrintIP);
@@ -1190,6 +1230,7 @@ void WLED::initInterfaces()
   }
   #endif                     // WLEDMM end
 
+  #ifndef WLED_DISABLE_MDNS   // WLEDMM
   // Set up mDNS responder:
   if (strlen(cmDNS) > 0) {
     // "end" must be called before "begin" is called a 2nd time
@@ -1197,11 +1238,13 @@ void WLED::initInterfaces()
     MDNS.end();
     MDNS.begin(cmDNS);
 
-    USER_PRINTF("mDNS started: %s.local\n", cmDNS); // WLEDMM
+    USER_PRINTF("mDNS started: http://%s.local\n", cmDNS); // WLEDMM
     MDNS.addService("http", "tcp", 80);
     MDNS.addService("wled", "tcp", 80);
     MDNS.addServiceTxt("wled", "tcp", "mac", escapedMac.c_str());
   }
+  #endif                     // WLEDMM end
+
   server.begin();
 
   if (udpPort > 0 && udpPort != ntpLocalPort) {
@@ -1214,9 +1257,14 @@ void WLED::initInterfaces()
   if (ntpEnabled)
     ntpConnected = ntpUdp.begin(ntpLocalPort);
 
+  #if E131_MAX_UNIVERSE_COUNT > 0
   e131.begin(e131Multicast, e131Port, e131Universe, E131_MAX_UNIVERSE_COUNT);
   ddp.begin(false, DDP_DEFAULT_PORT);
+  #endif
+
+  #ifndef WLED_DISABLE_HUESYNC
   reconnectHue();
+  #endif
 #ifndef WLED_DISABLE_MQTT
   initMqtt();
 #endif
@@ -1247,7 +1295,7 @@ void WLED::handleConnection()
 #if defined(ARDUINO_ARCH_ESP32S2) || defined(WLED_ENABLE_HUB75MATRIX)
     uint32_t heap = ESP.getFreeHeap(); // WLEDMM works better on -S2
 #else
-    uint32_t heap = heap_caps_get_largest_free_block(0x1800); // WLEDMM: This is a better metric for free heap.
+    uint32_t heap = ESP.getFreeHeap(); // heap_caps_get_largest_free_block(0x1800); // WLEDMM: This is a better metric for free heap.
 #endif
     if (heap < MIN_HEAP_SIZE && lastHeap < MIN_HEAP_SIZE) {
       if (retryCount < 5) {  // WLEDMM avoid repeated disconnects
@@ -1325,10 +1373,10 @@ void WLED::handleConnection()
   }
   if (forceReconnect) {
     USER_PRINTLN(F("Forcing reconnect."));
-    initConnection();
     interfacesInited = false;
     forceReconnect = false;
     wasConnected = false;
+    initConnection();    
     return;
   }
   if (!Network.isConnected()) {
@@ -1352,19 +1400,16 @@ void WLED::handleConnection()
       initAP();
     }
   } else if (!interfacesInited) { //newly connected
-    USER_PRINTLN("");
     USER_PRINT(F("Connected! IP address: http://"));
-    USER_PRINTLN(Network.localIP());
-    //if (Network.isEthernet()) {
-    //  #if ESP32
-    //  USER_PRINT(ETH.localIP());
-    //  USER_PRINTLN(" via Ethernet");
-    //  #endif
-    //} else {
-    //  USER_PRINT(Network.localIP());
-    //  USER_PRINTLN(" via WiFi");
-    //}
-
+    if (Network.isEthernet()) {
+      #if ESP32
+      USER_PRINT(ETH.localIP());
+      USER_PRINTLN(" via Ethernet");
+      #endif
+    } else {
+      USER_PRINT(Network.localIP());
+      USER_PRINTLN(" via WiFi");
+    }
     if (improvActive) {
       if (improvError == 3) sendImprovStateResponse(0x00, true);
       sendImprovStateResponse(0x04);

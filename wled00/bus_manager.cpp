@@ -447,7 +447,6 @@ uint8_t BusOnOff::getPins(uint8_t* pinArray) const {
   return 1;
 }
 
-
 BusNetwork::BusNetwork(BusConfig &bc, const ColorOrderMap &com) : Bus(bc.type, bc.start, bc.autoWhite), _colorOrderMap(com) {
   _valid = false;
   USER_PRINT("[");
@@ -475,7 +474,7 @@ BusNetwork::BusNetwork(BusConfig &bc, const ColorOrderMap &com) : Bus(bc.type, b
   }
   _UDPchannels = _rgbw ? 4 : 3;
   #ifdef ESP32
-  _data = (byte*) heap_caps_calloc_prefer((bc.count * _UDPchannels)+15, sizeof(byte), 3, MALLOC_CAP_DEFAULT, MALLOC_CAP_SPIRAM);
+  _data = (byte*) heap_caps_calloc_prefer((bc.count * _UDPchannels)+15, sizeof(byte), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
   #else
   _data = (byte*) calloc((bc.count * _UDPchannels)+15, sizeof(byte));
   #endif
@@ -487,7 +486,7 @@ BusNetwork::BusNetwork(BusConfig &bc, const ColorOrderMap &com) : Bus(bc.type, b
   _valid = true;
   _artnet_outputs = bc.artnet_outputs;
   _artnet_leds_per_output = bc.artnet_leds_per_output;
-  _artnet_fps_limit = max(uint8_t(1), bc.artnet_fps_limit);
+  _artnet_fps_limit = bc.artnet_fps_limit;
   USER_PRINTF(" %u.%u.%u.%u]\n", bc.pins[0],bc.pins[1],bc.pins[2],bc.pins[3]);
 }
 
@@ -565,8 +564,8 @@ uint8_t BusNetwork::getPins(uint8_t* pinArray) const {
 void BusNetwork::cleanup() {
   _type = I_NONE;
   _valid = false;
-  if (_data != nullptr) free(_data);
-  _data = nullptr;
+  // if (_data != nullptr) free(_data);
+  // _data = nullptr;
 }
 
 // ***************************************************************************
@@ -586,7 +585,7 @@ uint8_t BusHub75Matrix::last_bri = 0;
 // --------------------------
 // Bitdepth reduction based on panel size
 // --------------------------
-#if defined(CONFIG_IDF_TARGET_ESP32S3) && CONFIG_SPIRAM_MODE_OCT && defined(BOARD_HAS_PSRAM) && (defined(WLED_USE_PSRAM) || defined(WLED_USE_PSRAM_JSON))
+#if defined(CONFIG_IDF_TARGET_ESP32S3) && CONFIG_SPIRAM_MODE_OCT && defined(BOARD_HAS_PSRAM)
   // esp32-S3 with octal PSRAM
   #if defined(SPIRAM_FRAMEBUFFER)
     // when PSRAM is used for pixel buffers
@@ -665,8 +664,8 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   #endif
 
   #if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(BOARD_HAS_PSRAM)
-  if(bc.pins[0] > 4) {
-    USER_PRINTLN("WARNING, chain limited to 4");
+  if(bc.pins[0] > 6) {
+    USER_PRINTLN("WARNING, chain limited to 6");
   }
   # else
   // Disable this check if you are want to try bigger setups and accept you
@@ -754,8 +753,8 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   #else
   USER_PRINTLN("MatrixPanel_I2S_DMA - S3 with PSRAM");
 
-  mxconfig.gpio.r1 =  1;
-  mxconfig.gpio.g1 =  2;
+  mxconfig.gpio.r1 =   1;
+  mxconfig.gpio.g1 =   2;
   mxconfig.gpio.b1 =  42;
   // 4th pin is GND
   mxconfig.gpio.r2 =  41;
@@ -765,10 +764,10 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
   mxconfig.gpio.a =   45;
   mxconfig.gpio.b =   48;
   mxconfig.gpio.c =   47;
-  mxconfig.gpio.d =   21;
-  mxconfig.gpio.clk = 18;
-  mxconfig.gpio.lat = 8;
-  mxconfig.gpio.oe  = 3;
+  mxconfig.gpio.d =   21;   // this says GND but should be the "D" pin
+  mxconfig.gpio.clk = 20;
+  mxconfig.gpio.lat = 19;
+  mxconfig.gpio.oe  =  8;   // don't use GPIO0 or it might hold board in download mode
   // 16th pin is GND
   #endif
 
@@ -979,18 +978,13 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
     if (_ledBuffer) free(_ledBuffer);                 // should not happen
     if (_ledsDirty) free(_ledsDirty);                 // should not happen
 
-    _ledsDirty = (byte*) malloc(getBitArrayBytes(_len));  // create LEDs dirty bits
+    #if ESP32
+    _ledsDirty = (byte*) heap_caps_malloc_prefer(getBitArrayBytes(_len), 3, MALLOC_CAP_INTERNAL, MALLOC_CAP_DEFAULT, MALLOC_CAP_SPIRAM);
+    _ledBuffer = (CRGB*) heap_caps_calloc_prefer(_len, sizeof(CRGB), 2, MALLOC_CAP_SPIRAM, MALLOC_CAP_DEFAULT);
+    #endif
+
     if (_ledsDirty) setBitArray(_ledsDirty, _len, false); // reset dirty bits
 
-    #if defined(CONFIG_IDF_TARGET_ESP32S3) && CONFIG_SPIRAM_MODE_OCT && defined(BOARD_HAS_PSRAM) && (defined(WLED_USE_PSRAM) || defined(WLED_USE_PSRAM_JSON))
-      if (psramFound()) {
-        _ledBuffer = (CRGB*) ps_calloc(_len, sizeof(CRGB));  // create LEDs buffer (initialized to BLACK)
-      } else {
-        _ledBuffer = (CRGB*) calloc(_len, sizeof(CRGB));  // create LEDs buffer (initialized to BLACK)
-      }
-    #else
-      _ledBuffer = (CRGB*) calloc(_len, sizeof(CRGB));  // create LEDs buffer (initialized to BLACK)
-    #endif
   }
 
   if ((_ledBuffer == nullptr) || (_ledsDirty == nullptr)) {
@@ -1029,6 +1023,10 @@ BusHub75Matrix::BusHub75Matrix(BusConfig &bc) : Bus(bc.type, bc.start, bc.autoWh
       fourScanPanel->setRotation(0);
       break;
   }  
+
+  // Set here to match your physical layout for multiple panels in a matrix layout:
+  // virtualDisp = new VirtualMatrixPanel((*dma_display), NUM_ROWS, NUM_COLS, PANEL_RES_X, PANEL_RES_Y, VIRTUAL_MATRIX_CHAIN_TYPE); 
+  fourScanPanel = new VirtualMatrixPanel((*display), 2, 3, 64, 64, CHAIN_BOTTOM_RIGHT_UP);
 
   if (_valid) {
     _panelWidth = fourScanPanel ? fourScanPanel->width() : display->width();  // cache width - it will never change

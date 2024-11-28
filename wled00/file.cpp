@@ -65,7 +65,11 @@ static bool bufferedFind(const char *target, bool fromStart = true) {
   size_t targetLen = strlen(target);
 
   size_t index = 0;
+  #if ESP32
+  byte *buf = (byte *) heap_caps_malloc_prefer(FS_BUFSIZE,2,MALLOC_CAP_SPIRAM,MALLOC_CAP_DEFAULT);
+  #else 
   byte buf[FS_BUFSIZE];
+  #endif
   if (fromStart) f.seek(0);
 
   while (f.position() < f.size() -1) {
@@ -407,20 +411,20 @@ static String getContentType(AsyncWebServerRequest* request, String filename){
   return "text/plain";
 }
 
-#if defined(BOARD_HAS_PSRAM) && (defined(WLED_USE_PSRAM) || defined(WLED_USE_PSRAM_JSON))
 // caching presets in PSRAM may prevent occasional flashes seen when HomeAssistant polls WLED
 // original idea by @akaricchi (https://github.com/Akaricchi)
 // returns a pointer to the PSRAM buffer, updates size parameter
 static const uint8_t *getPresetCache(size_t &size) {
-  static unsigned long presetsCachedTime = 0;
-  static uint8_t *presetsCached = nullptr;
-  static size_t presetsCachedSize = 0;
-  static byte presetsCachedValidate = 0;
-
+  #ifdef ESP32
   if (!psramFound()) {
     size = 0;
     return nullptr;
   }
+
+  static unsigned long presetsCachedTime = 0;
+  static uint8_t *presetsCached = nullptr;
+  static size_t presetsCachedSize = 0;
+  static byte presetsCachedValidate = 0;
 
   //if (presetsModifiedTime != presetsCachedTime) DEBUG_PRINTLN(F("getPresetCache(): presetsModifiedTime changed."));
   //if (presetsCachedValidate != cacheInvalidate) DEBUG_PRINTLN(F("getPresetCache(): cacheInvalidate changed."));
@@ -453,8 +457,10 @@ static const uint8_t *getPresetCache(size_t &size) {
 
   size = presetsCachedSize;
   return presetsCached;
+  #else
+  return nullptr;
+  #endif
 }
-#endif
 
 // WLEDMM
 static bool haveLedmapFile = true;
@@ -468,15 +474,16 @@ void invalidateFileNameCache() { // reset "file not found" cache
   haveSkinFile = true;
   haveICOFile = true;
   haveCpalFile = true;
-
-  #if defined(BOARD_HAS_PSRAM) && (defined(WLED_USE_PSRAM) || defined(WLED_USE_PSRAM_JSON))
-  // WLEDMM hack to clear presets.json cache
-  size_t dummy;
-  unsigned long realpresetsTime = presetsModifiedTime;
-  presetsModifiedTime = toki.second();   // pretend we have changes
-  (void) getPresetCache(dummy);          // clear presets.json cache
-  presetsModifiedTime = realpresetsTime; // restore correct value
-#endif
+  #ifdef ESP32
+  if (psramFound()) {
+    // WLEDMM hack to clear presets.json cache
+    size_t dummy;
+    unsigned long realpresetsTime = presetsModifiedTime;
+    presetsModifiedTime = toki.second();   // pretend we have changes
+    (void) getPresetCache(dummy);          // clear presets.json cache
+    presetsModifiedTime = realpresetsTime; // restore correct value
+  }
+  #endif
   //USER_PRINTLN("WS FileRead cache cleared");
 }
 
@@ -500,14 +507,16 @@ bool handleFileRead(AsyncWebServerRequest* request, String path){
     return true;
   }*/
 
-  #if defined(BOARD_HAS_PSRAM) && (defined(WLED_USE_PSRAM) || defined(WLED_USE_PSRAM_JSON))
-  if (path.endsWith("/presets.json")) {
-    size_t psize;
-    const uint8_t *presets = getPresetCache(psize);
-    if (presets) {
-      AsyncWebServerResponse *response = request->beginResponse_P(200, contentType, presets, psize);
-      request->send(response);
-      return true;
+  #ifdef ESP32
+  if (psramFound()) {
+    if (path.endsWith("/presets.json")) {
+      size_t psize;
+      const uint8_t *presets = getPresetCache(psize);
+      if (presets) {
+        AsyncWebServerResponse *response = request->beginResponse_P(200, contentType, presets, psize);
+        request->send(response);
+        return true;
+      }
     }
   }
   #endif
