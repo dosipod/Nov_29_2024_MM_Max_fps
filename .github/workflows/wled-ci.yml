@@ -21,6 +21,16 @@ jobs:
         python-version: '3.9'
     - name: Install PlatformIO
       run: pip install -r requirements.txt
+#-----------------------------------------------------------------------------------------
+    - name: Set the date as variable
+      id: DateToday
+      run: echo "NOW=$(date +'%y%m%dT%H%M')" >> $GITHUB_ENV
+    - name: Print the date variable
+      run: |
+        echo $NOW # Gives "20241031T0304" USING NOW 
+        echo ${{ env.NOW }}  # Also Gives "20241031T0304" USING env.NOW 
+
+ #---------------------------------------------------------------------------------------   
     - name: Get default environments
       id: envs
       run: |
@@ -57,16 +67,29 @@ jobs:
           python-version: '3.9'
     - name: Install PlatformIO
       run: pip install -r requirements.txt
+
+#-----------------------------------------------------------------------------------------
+    - name: Set the date as variable
+      id: DateToday
+      run: echo "NOW=$(date +'%y%m%dT%H%M')" >> $GITHUB_ENV
+    - name: Print the date variable
+      run: |
+        echo $NOW # Gives "20241031T0304" USING NOW 
+        echo ${{ env.NOW }}  # Also Gives "20241031T0304" USING env.NOW 
+
+ #---------------------------------------------------------------------------------------   
+
+      
     - name: Build firmware
       env:
         WLED_RELEASE: True
       run: pio run -e ${{ matrix.environment }}
     - name: Rename Bin
-      run: mv -v .pio/build/${{ matrix.environment }}/firmware.bin firmware-${{ matrix.environment }}.bin
+      run: mv -v .pio/build/${{ matrix.environment }}/firmware.bin ${{ env.NOW }}-${{ matrix.environment }}.bin
     - uses: actions/upload-artifact@v4
       with:
-        name: firmware-${{ matrix.environment }}
-        path: firmware-${{ matrix.environment }}.bin
+        name: ${{ env.NOW }}-${{ matrix.environment }}
+        path: ${{ env.NOW }}-${{ matrix.environment }}.bin
     - uses: actions/upload-artifact@v4
       if: startsWith(github.ref, 'refs/tags/')
       with:
@@ -88,4 +111,4 @@ jobs:
         files: |
           WLEDMM*.bin
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }
